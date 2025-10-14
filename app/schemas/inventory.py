@@ -5,7 +5,7 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, condecimal, conint, root_validator
+from pydantic import BaseModel, Field, condecimal, conint, model_validator
 
 
 class StockReason(str, Enum):
@@ -34,13 +34,11 @@ class InventoryAdjustment(BaseModel):
     actual_cost: Optional[AmountValue] = None
     sale_price: Optional[AmountValue] = None
 
-    @root_validator
-    def _ensure_hardware_identifier(cls, values):
-        hardware_id = values.get("hardware_id")
-        barcode = values.get("barcode")
-        if not hardware_id and not barcode:
+    @model_validator(mode="after")
+    def _ensure_hardware_identifier(self):
+        if not self.hardware_id and not self.barcode:
             raise ValueError("Either hardware_id or barcode must be provided")
-        return values
+        return self
 
 
 class InventoryEventOut(BaseModel):
