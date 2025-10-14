@@ -1,11 +1,17 @@
 import os
+import sys
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-os.environ.setdefault("DATA_DIR", "data")  # ensure consistent paths for client table reads
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+os.environ.setdefault("DATA_DIR", str(ROOT / "data"))  # ensure consistent paths for client table reads
 
 from app.db.session import Base  # noqa: E402
 from app.models.ticket import Ticket  # noqa: E402
