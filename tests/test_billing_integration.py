@@ -12,6 +12,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 os.environ.setdefault("DATA_DIR", str(ROOT / "data"))  # ensure consistent paths for client table reads
+os.environ.setdefault("TZ", "UTC")
 
 from app.db.session import Base  # noqa: E402
 from app.models.ticket import Ticket  # noqa: E402
