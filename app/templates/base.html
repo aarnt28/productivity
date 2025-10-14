@@ -3,29 +3,66 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>{% block title %}Time Tracker{% endblock %}</title>
+  <title>{% block title %}Productivity Console{% endblock %}</title>
   <link rel="stylesheet" href="/static/app.css" />
   <link rel="icon" href="/static/favicon.ico" />
 </head>
 <body class="dashboard">
-  <header class="app-header">
-    <div class="container">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="app-header" role="banner">
+    <div class="app-header__halo" aria-hidden="true"></div>
+    <div class="app-header__inner container">
       <div class="branding">
-        <img
-          src="/static/img/vip-full-hd-transparant-cropped-halfsize.png"
-          srcset="/static/img/vip-full-hd-transparant-cropped-halfsize.png 1x, /static/img/vip-full-hd-transparant-384x150.png 2x"
-          alt="VIP Clouds logo"
-          class="branding__logo"
-        />
+        <a class="branding__logo-link" href="/" aria-label="VIP Clouds home">
+          <img
+            src="/static/img/vip-full-hd-transparant-cropped-halfsize.png"
+            srcset="/static/img/vip-full-hd-transparant-cropped-halfsize.png 1x, /static/img/vip-full-hd-transparant-384x150.png 2x"
+            alt="VIP Clouds logo"
+            class="branding__logo"
+          />
+        </a>
         <div class="branding__meta">
           <span class="branding__kicker">VIP Clouds</span>
-          <h1 class="logo"><a href="/">Time Tracker</a></h1>
+          <h1 class="logo">
+            <a href="/">Productivity Console</a>
+          </h1>
+          <p class="branding__tagline">Catalog, inventory, work, and billing in one view.</p>
         </div>
       </div>
+      {% set path = request.url.path if request is defined and request and request.url else '' %}
+      {% set nav_items = [
+        {"label": "Mission Control", "href": "/", "match": "/"},
+        {"label": "Catalog", "href": "/hardware", "match": "/hardware"},
+        {"label": "Inventory", "href": "/inventory", "match": "/inventory"},
+        {"label": "Work Orders", "href": "/tickets", "match": "/tickets"},
+        {"label": "Billing", "href": "/billing", "match": "/billing"},
+        {"label": "Reports", "href": "/reports", "match": "/reports"},
+        {"label": "Clients", "href": "/clients", "match": "/clients"}
+      ] %}
+      <nav class="primary-nav" aria-label="Primary navigation">
+        {% for item in nav_items %}
+        {% set is_active = (path == item.match) if item.match == '/' else (path.startswith(item.match)) %}
+        <a
+          href="{{ item.href }}"
+          class="nav-link{% if is_active %} nav-link--active{% endif %}"
+          {% if is_active %}aria-current="page"{% endif %}
+        >
+          {{ item.label }}
+        </a>
+        {% endfor %}
+      </nav>
     </div>
+    {% block masthead_extra %}{% endblock %}
   </header>
-  <main class="container">
-    {% block content %}{% endblock %}
+  <main id="main-content" class="content-area" role="main">
+    <div class="container">
+      {% block content %}{% endblock %}
+    </div>
   </main>
+  <footer class="app-footer">
+    <div class="container">
+      <p class="app-footer__note">Preview environment · Built for iterative testing of the productivity stack.</p>
+    </div>
+  </footer>
 </body>
 </html>

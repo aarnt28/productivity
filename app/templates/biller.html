@@ -1,301 +1,171 @@
 {% extends "base.html" %}
-{% block title %}Biller{% endblock %}
+{% block title %}Billing Workspace{% endblock %}
 
 {% block content %}
-<section class="page-header">
-  <h2>Invoice Builder</h2>
-  <p class="subhead">Select unbilled items, tweak rates and quantities, then generate and finalize invoices in one flow.</p>
-</section>
-
 <div
   id="biller-app"
-  class="biller-grid"
+  class="billing-workspace"
   data-initial='{{ initial_unbilled_json|safe }}'
   data-clients='{{ clients_json|safe }}'
   data-selected-client='{{ selected_client_id }}'
 >
-  <section class="biller-pane biller-filters">
-    <h3>Filters</h3>
-    <form data-role="filters-form" class="filters-form">
-      <label>
-        Client
-        <select name="client_id" data-role="client-select">
-          <option value="">All Clients</option>
-          {% for client in clients %}
-          <option value="{{ client.id }}" {% if client.id|string == selected_client_id|string %}selected{% endif %}>
-            {{ client.name }}
-          </option>
-          {% endfor %}
-        </select>
-      </label>
-      <label>
-        Project
-        <select name="project_id" data-role="project-select">
-          <option value="">All Projects</option>
-        </select>
-      </label>
-      <label>
-        From
-        <input type="date" name="from" data-role="from-date" />
-      </label>
-      <label>
-        To
-        <input type="date" name="to" data-role="to-date" />
-      </label>
-      <button type="submit" class="btn-primary">Refresh</button>
-    </form>
-  </section>
-
-  <section class="biller-pane biller-lists">
-    <div class="tab-bar">
-      <button type="button" class="tab-button active" data-role="tab" data-tab="time">Unbilled Time</button>
-      <button type="button" class="tab-button" data-role="tab" data-tab="parts">Unbilled Parts</button>
-      <button type="button" class="tab-button" data-role="tab" data-tab="flat">Flat Tasks</button>
+  <section class="workspace-header">
+    <div class="workspace-header__copy">
+      <p class="workspace-header__eyebrow">Billing</p>
+      <h2 class="workspace-header__title">Invoice Builder</h2>
+      <p class="workspace-header__lead">
+        Select unbilled time, parts, and flat tasks, then tune rates and quantities to assemble an invoice in one flow.
+      </p>
+      <p class="workspace-header__selection" data-role="selection-indicator">Showing all clients</p>
     </div>
-    <div class="tab-content">
-      <div class="tab-panel" data-list="time"></div>
-      <div class="tab-panel hidden" data-list="parts"></div>
-      <div class="tab-panel hidden" data-list="flat"></div>
+    <div class="workspace-metrics" aria-live="polite">
+      <article class="workspace-metric" data-type="time">
+        <span class="workspace-metric__label">Unbilled time</span>
+        <div class="workspace-metric__value">
+          <strong data-role="metric-time-count">0</strong>
+          <span class="workspace-metric__suffix">items</span>
+        </div>
+        <span class="workspace-metric__total" data-role="metric-time-total">$0.00</span>
+      </article>
+      <article class="workspace-metric" data-type="parts">
+        <span class="workspace-metric__label">Issued parts</span>
+        <div class="workspace-metric__value">
+          <strong data-role="metric-parts-count">0</strong>
+          <span class="workspace-metric__suffix">items</span>
+        </div>
+        <span class="workspace-metric__total" data-role="metric-parts-total">$0.00</span>
+      </article>
+      <article class="workspace-metric" data-type="flat">
+        <span class="workspace-metric__label">Flat tasks</span>
+        <div class="workspace-metric__value">
+          <strong data-role="metric-flat-count">0</strong>
+          <span class="workspace-metric__suffix">templates</span>
+        </div>
+        <span class="workspace-metric__total" data-role="metric-flat-total">$0.00</span>
+      </article>
     </div>
   </section>
 
-  <section class="biller-pane biller-invoice">
-    <h3>Invoice Lines</h3>
-    <div data-role="invoice-empty" class="empty-state">Select items to build an invoice.</div>
-    <table class="invoice-table" data-role="invoice-table">
-      <thead>
-        <tr>
-          <th>Item</th>
-          <th>Qty</th>
-          <th>Rate</th>
-          <th>Total</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody data-role="invoice-lines"></tbody>
-    </table>
-    <div class="invoice-controls">
-      <label>
-        Discount
-        <input type="number" step="0.01" value="0.00" data-role="discount-input" />
-      </label>
-      <label>
-        Tax
-        <input type="number" step="0.01" value="0.00" data-role="tax-input" />
-      </label>
-    </div>
-    <dl class="invoice-summary">
-      <div>
-        <dt>Subtotal</dt>
-        <dd data-role="subtotal">$0.00</dd>
-      </div>
-      <div>
-        <dt>Total</dt>
-        <dd data-role="total">$0.00</dd>
-      </div>
-    </dl>
-    <div class="invoice-actions">
-      <button type="button" class="btn-primary" data-action="create">Create Draft</button>
-      <div class="finalize-group hidden" data-role="finalize-group">
-        <label>
-          Finalize as
-          <select data-role="finalize-status">
-            <option value="sent">Sent</option>
-            <option value="paid">Paid</option>
+  <div class="biller-grid">
+    <section class="biller-pane biller-filters surface surface--raised">
+      <header class="pane-head">
+        <h3 class="pane-title">Filters</h3>
+      </header>
+      <form data-role="filters-form" class="filters-form">
+        <label class="field-block">
+          <span>Client</span>
+          <select name="client_id" data-role="client-select">
+            <option value="">All clients</option>
+            {% for client in clients %}
+            <option value="{{ client.id }}" {% if client.id|string == selected_client_id|string %}selected{% endif %}>
+              {{ client.name }}
+            </option>
+            {% endfor %}
           </select>
         </label>
-        <button type="button" class="btn-secondary" data-action="finalize">Finalize</button>
-      </div>
-      <button type="button" class="btn-link" data-action="reset">Reset</button>
-    </div>
-    <p class="status-message" data-role="status-message"></p>
-  </section>
-</div>
+        <label class="field-block">
+          <span>Project</span>
+          <select name="project_id" data-role="project-select">
+            <option value="">All projects</option>
+          </select>
+        </label>
+        <label class="field-block">
+          <span>From</span>
+          <input type="date" name="from" data-role="from-date" />
+        </label>
+        <label class="field-block">
+          <span>To</span>
+          <input type="date" name="to" data-role="to-date" />
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Refresh</button>
+          <button type="button" class="btn btn-ghost" data-action="clear-filters">Clear filters</button>
+        </div>
+      </form>
+    </section>
 
-<style>
-  .page-header {
-    margin-bottom: 1.5rem;
-  }
-  .page-header h2 {
-    margin: 0;
-    font-size: 1.75rem;
-  }
-  .page-header .subhead {
-    margin: 0.25rem 0 0;
-    color: #555;
-  }
-  .biller-grid {
-    display: grid;
-    grid-template-columns: 280px 1fr 1fr;
-    gap: 1.5rem;
-    align-items: start;
-  }
-  .biller-pane {
-    background: #fff;
-    border: 1px solid #e2e2e2;
-    border-radius: 8px;
-    padding: 1rem;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  }
-  .filters-form {
-    display: grid;
-    gap: 0.75rem;
-  }
-  .filters-form label {
-    display: grid;
-    gap: 0.35rem;
-    font-weight: 600;
-    font-size: 0.9rem;
-  }
-  .filters-form select,
-  .filters-form input {
-    padding: 0.45rem;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-  }
-  .filters-form .btn-primary {
-    margin-top: 0.5rem;
-  }
-  .tab-bar {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 0.75rem;
-  }
-  .tab-button {
-    flex: 1;
-    padding: 0.5rem;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    background: #f6f6f6;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .tab-button.active {
-    background: #1747a6;
-    border-color: #1747a6;
-    color: #fff;
-  }
-  .tab-panel {
-    display: grid;
-    gap: 0.6rem;
-    max-height: 480px;
-    overflow-y: auto;
-  }
-  .tab-panel.hidden {
-    display: none;
-  }
-  .list-card {
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-    padding: 0.75rem;
-    display: grid;
-    gap: 0.5rem;
-    background: #fafafa;
-  }
-  .list-card header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .list-card h4 {
-    margin: 0;
-    font-size: 1rem;
-  }
-  .list-card p {
-    margin: 0;
-    color: #555;
-    font-size: 0.9rem;
-  }
-  .invoice-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 0.75rem 0;
-  }
-  .invoice-table th,
-  .invoice-table td {
-    border: 1px solid #e2e2e2;
-    padding: 0.45rem;
-    text-align: left;
-  }
-  .invoice-table input {
-    width: 100%;
-    padding: 0.35rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-  }
-  .invoice-controls {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 0.75rem;
-  }
-  .invoice-controls label {
-    display: grid;
-    gap: 0.25rem;
-    font-weight: 600;
-  }
-  .invoice-summary {
-    display: grid;
-    gap: 0.25rem;
-    margin-bottom: 1rem;
-  }
-  .invoice-summary div {
-    display: flex;
-    justify-content: space-between;
-  }
-  .invoice-summary dt,
-  .invoice-summary dd {
-    margin: 0;
-  }
-  .invoice-actions {
-    display: flex;
-    gap: 0.75rem;
-    align-items: center;
-  }
-  .btn-primary,
-  .btn-secondary,
-  .btn-link {
-    cursor: pointer;
-    border-radius: 6px;
-    border: none;
-    padding: 0.5rem 1rem;
-    font-weight: 600;
-  }
-  .btn-primary {
-    background: #1747a6;
-    color: #fff;
-  }
-  .btn-secondary {
-    background: #f5f7fb;
-    color: #1747a6;
-  }
-  .btn-link {
-    background: transparent;
-    color: #555;
-    text-decoration: underline;
-  }
-  .finalize-group {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-  }
-  .finalize-group.hidden {
-    display: none;
-  }
-  .status-message {
-    margin-top: 0.75rem;
-    font-size: 0.9rem;
-    min-height: 1.2rem;
-  }
-  .empty-state {
-    color: #777;
-    margin-bottom: 0.75rem;
-  }
-  @media (max-width: 1200px) {
-    .biller-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-</style>
+    <section class="biller-pane biller-lists surface surface--raised">
+      <header class="pane-head">
+        <h3 class="pane-title">Unbilled sources</h3>
+      </header>
+      <div class="tab-bar" role="tablist">
+        <button type="button" class="tab-button active" data-role="tab" data-tab="time" role="tab" aria-selected="true">
+          Unbilled time
+        </button>
+        <button type="button" class="tab-button" data-role="tab" data-tab="parts" role="tab" aria-selected="false">
+          Parts
+        </button>
+        <button type="button" class="tab-button" data-role="tab" data-tab="flat" role="tab" aria-selected="false">
+          Flat tasks
+        </button>
+      </div>
+      <div class="tab-content">
+        <div class="tab-panel" data-list="time" role="tabpanel"></div>
+        <div class="tab-panel hidden" data-list="parts" role="tabpanel"></div>
+        <div class="tab-panel hidden" data-list="flat" role="tabpanel"></div>
+      </div>
+    </section>
+
+    <section class="biller-pane biller-invoice surface surface--raised">
+      <header class="pane-head pane-head--split">
+        <div>
+          <h3 class="pane-title">Invoice assembly</h3>
+          <p class="pane-subtitle">Tune quantities and rates, then create and finalize invoices without leaving the page.</p>
+        </div>
+        <div class="invoice-controls-group">
+          <label>
+            <span>Discount</span>
+            <input type="number" step="0.01" value="0.00" data-role="discount-input" />
+          </label>
+          <label>
+            <span>Tax</span>
+            <input type="number" step="0.01" value="0.00" data-role="tax-input" />
+          </label>
+        </div>
+      </header>
+      <div data-role="invoice-empty" class="empty-state">Select items to build an invoice.</div>
+      <div class="invoice-table-wrap">
+        <table class="invoice-table" data-role="invoice-table">
+          <thead>
+            <tr>
+              <th scope="col">Item</th>
+              <th scope="col">Qty</th>
+              <th scope="col">Rate</th>
+              <th scope="col">Total</th>
+              <th scope="col" class="table-actions">Action</th>
+            </tr>
+          </thead>
+          <tbody data-role="invoice-lines"></tbody>
+        </table>
+      </div>
+      <dl class="invoice-summary">
+        <div>
+          <dt>Subtotal</dt>
+          <dd data-role="subtotal">$0.00</dd>
+        </div>
+        <div>
+          <dt>Total</dt>
+          <dd data-role="total">$0.00</dd>
+        </div>
+      </dl>
+      <div class="invoice-actions">
+        <button type="button" class="btn btn-primary" data-action="create">Create draft</button>
+        <div class="finalize-group hidden" data-role="finalize-group">
+          <label>
+            <span>Finalize as</span>
+            <select data-role="finalize-status">
+              <option value="sent">Sent</option>
+              <option value="paid">Paid</option>
+            </select>
+          </label>
+          <button type="button" class="btn btn-secondary" data-action="finalize">Finalize</button>
+        </div>
+        <button type="button" class="btn btn-link" data-action="reset">Reset selection</button>
+      </div>
+      <p class="status-message" data-role="status-message" role="status" aria-live="polite"></p>
+    </section>
+  </div>
+</div>
 
 <script>
 (() => {
@@ -349,6 +219,16 @@
     finalizeStatus: root.querySelector("[data-role='finalize-status']"),
     resetButton: root.querySelector("[data-action='reset']"),
     statusMessage: root.querySelector("[data-role='status-message']"),
+    selectionIndicator: root.querySelector("[data-role='selection-indicator']"),
+    clearFiltersButton: root.querySelector("[data-action='clear-filters']"),
+    metrics: {
+      timeCount: root.querySelector("[data-role='metric-time-count']"),
+      timeTotal: root.querySelector("[data-role='metric-time-total']"),
+      partsCount: root.querySelector("[data-role='metric-parts-count']"),
+      partsTotal: root.querySelector("[data-role='metric-parts-total']"),
+      flatCount: root.querySelector("[data-role='metric-flat-count']"),
+      flatTotal: root.querySelector("[data-role='metric-flat-total']"),
+    },
   };
 
   const formatCurrency = (value) => {
@@ -356,7 +236,25 @@
     return `$${number.toFixed(2)}`;
   };
 
-  const toDate = (value) => (value ? new Date(value) : null);
+  const toNumber = (value) => {
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : 0;
+    }
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const updateSelectionIndicator = () => {
+    if (!els.selectionIndicator) {
+      return;
+    }
+    if (!state.selectedClientId) {
+      els.selectionIndicator.textContent = "Showing all clients";
+      return;
+    }
+    const match = state.clients.find((client) => Number(client.id) === Number(state.selectedClientId));
+    els.selectionIndicator.textContent = match ? `Focused on ${match.name}` : "Showing all clients";
+  };
 
   const updateProjectOptions = () => {
     const projectMap = new Map();
@@ -371,7 +269,7 @@
     });
     const select = els.projectSelect;
     const current = select.value;
-    select.innerHTML = '<option value="">All Projects</option>';
+    select.innerHTML = '<option value="">All projects</option>';
     for (const [id, label] of projectMap.entries()) {
       const option = document.createElement("option");
       option.value = id;
@@ -418,15 +316,48 @@
     });
   };
 
+  const updateMetrics = (filteredLists) => {
+    const lists = filteredLists || {
+      time: applyFilters("time"),
+      parts: applyFilters("parts"),
+      flat: applyFilters("flat"),
+    };
+    const { metrics } = els;
+    if (!metrics) {
+      return;
+    }
+    if (metrics.timeCount) {
+      metrics.timeCount.textContent = lists.time.length;
+    }
+    if (metrics.timeTotal) {
+      const total = lists.time.reduce((sum, item) => sum + toNumber(item.subtotal), 0);
+      metrics.timeTotal.textContent = formatCurrency(total);
+    }
+    if (metrics.partsCount) {
+      metrics.partsCount.textContent = lists.parts.length;
+    }
+    if (metrics.partsTotal) {
+      const total = lists.parts.reduce((sum, item) => sum + toNumber(item.subtotal), 0);
+      metrics.partsTotal.textContent = formatCurrency(total);
+    }
+    if (metrics.flatCount) {
+      metrics.flatCount.textContent = lists.flat.length;
+    }
+    if (metrics.flatTotal) {
+      const total = lists.flat.reduce((sum, item) => sum + toNumber(item.sell_price), 0);
+      metrics.flatTotal.textContent = formatCurrency(total);
+    }
+  };
+
   const isSelected = (type, item) => {
     const key = `${type}:${item.id ?? item.time_entry_id ?? item.part_usage_id ?? item.catalog_item_id}`;
     return state.selectedKeys.has(key);
   };
 
-  const renderList = (type) => {
+  const renderList = (type, filteredItems) => {
     const container = els.lists[type];
     container.innerHTML = "";
-    const filtered = applyFilters(type);
+    const filtered = filteredItems ?? applyFilters(type);
     if (!filtered.length) {
       const empty = document.createElement("p");
       empty.className = "empty-state";
@@ -438,20 +369,24 @@
       const card = document.createElement("article");
       card.className = "list-card";
       const header = document.createElement("header");
+      header.className = "list-card__head";
       const title = document.createElement("h4");
+      title.className = "list-card__title";
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "btn-secondary";
+      button.className = "btn btn-secondary";
 
       if (type === "time") {
         title.textContent = item.description || `Time Entry #${item.time_entry_id}`;
         const details = document.createElement("p");
         const hours = (Number(item.minutes) || 0) / 60;
+        details.className = "list-card__meta";
         details.textContent = `${hours.toFixed(2)} hours @ ${formatCurrency(item.resolved_bill_rate)} • Work Order #${item.work_order_id}`;
         const meta = document.createElement("p");
         if (item.ended_at) {
           const ended = new Date(item.ended_at);
           meta.textContent = `Ended ${ended.toLocaleString()}`;
+          meta.className = "list-card__time";
         }
         header.appendChild(title);
         button.textContent = isSelected(type, item) ? "Added" : "Add";
@@ -465,11 +400,13 @@
       } else if (type === "parts") {
         title.textContent = `${item.name} (${item.sku})`;
         const details = document.createElement("p");
+        details.className = "list-card__meta";
         details.textContent = `${Number(item.qty).toFixed(2)} ${item.unit} @ ${formatCurrency(item.resolved_sell_price)} • Work Order #${item.work_order_id}`;
         const meta = document.createElement("p");
         if (item.created_at) {
           const created = new Date(item.created_at);
           meta.textContent = `Issued ${created.toLocaleString()}`;
+          meta.className = "list-card__time";
         }
         header.appendChild(title);
         button.textContent = isSelected(type, item) ? "Added" : "Add";
@@ -483,6 +420,7 @@
       } else {
         title.textContent = `${item.name} (${item.sku})`;
         const details = document.createElement("p");
+        details.className = "list-card__meta";
         details.textContent = `${formatCurrency(item.sell_price)} flat`;
         header.appendChild(title);
         button.textContent = isSelected(type, item) ? "Added" : "Add";
@@ -498,9 +436,15 @@
   };
 
   const renderLists = () => {
-    renderList("time");
-    renderList("parts");
-    renderList("flat");
+    const filtered = {
+      time: applyFilters("time"),
+      parts: applyFilters("parts"),
+      flat: applyFilters("flat"),
+    };
+    renderList("time", filtered.time);
+    renderList("parts", filtered.parts);
+    renderList("flat", filtered.flat);
+    updateMetrics(filtered);
   };
 
   const renderInvoice = () => {
@@ -518,83 +462,91 @@
     }
 
     state.selectedLines.forEach((line, index) => {
-      const tr = document.createElement("tr");
-      const descTd = document.createElement("td");
-      descTd.textContent = line.description;
+      const row = document.createElement("tr");
+      const itemCell = document.createElement("td");
+      itemCell.className = "invoice-item";
+      const qtyCell = document.createElement("td");
+      qtyCell.className = "invoice-qty";
+      const rateCell = document.createElement("td");
+      rateCell.className = "invoice-rate";
+      const totalCell = document.createElement("td");
+      totalCell.className = "invoice-total";
+      const actionCell = document.createElement("td");
+      actionCell.className = "table-actions";
 
-      const qtyTd = document.createElement("td");
       const qtyInput = document.createElement("input");
       qtyInput.type = "number";
       qtyInput.step = "0.01";
-      qtyInput.value = Number(line.qty).toFixed(2);
-      qtyTd.appendChild(qtyInput);
+      qtyInput.value = line.qty;
 
-      const priceTd = document.createElement("td");
-      const priceInput = document.createElement("input");
-      priceInput.type = "number";
-      priceInput.step = "0.01";
-      priceInput.value = Number(line.unit_price).toFixed(2);
-      priceTd.appendChild(priceInput);
+      const rateInput = document.createElement("input");
+      rateInput.type = "number";
+      rateInput.step = "0.01";
+      rateInput.value = line.unit_price;
 
-      const totalTd = document.createElement("td");
-      totalTd.textContent = formatCurrency(line.qty * line.unit_price);
-
-      const actionTd = document.createElement("td");
-      const removeBtn = document.createElement("button");
-      removeBtn.type = "button";
-      removeBtn.textContent = "Remove";
-      removeBtn.className = "btn-link";
-      actionTd.appendChild(removeBtn);
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "btn btn-link";
+      removeButton.textContent = "Remove";
 
       qtyInput.addEventListener("change", () => {
-        const value = parseFloat(qtyInput.value);
-        line.qty = isFinite(value) && value > 0 ? value : line.qty;
-        qtyInput.value = Number(line.qty).toFixed(2);
+        const value = Number(qtyInput.value);
+        line.qty = Number.isFinite(value) && value >= 0 ? value : line.qty;
         renderInvoice();
       });
 
-      priceInput.addEventListener("change", () => {
-        const value = parseFloat(priceInput.value);
-        line.unit_price = isFinite(value) ? value : line.unit_price;
-        priceInput.value = Number(line.unit_price).toFixed(2);
+      rateInput.addEventListener("change", () => {
+        const value = Number(rateInput.value);
+        line.unit_price = Number.isFinite(value) ? value : line.unit_price;
         renderInvoice();
       });
 
-      removeBtn.addEventListener("click", () => {
+      removeButton.addEventListener("click", () => {
         state.selectedLines.splice(index, 1);
-        state.selectedKeys.delete(line.key);
+        state.selectedKeys.delete(`${line.source_type}:${line.source_id}`);
         renderLists();
         renderInvoice();
       });
 
-      tr.appendChild(descTd);
-      tr.appendChild(qtyTd);
-      tr.appendChild(priceTd);
-      tr.appendChild(totalTd);
-      tr.appendChild(actionTd);
-      els.invoiceLines.appendChild(tr);
+      itemCell.textContent = line.description;
+      qtyCell.appendChild(qtyInput);
+      rateCell.appendChild(rateInput);
+      totalCell.textContent = formatCurrency(Number(line.qty) * Number(line.unit_price));
+      actionCell.appendChild(removeButton);
+      row.appendChild(itemCell);
+      row.appendChild(qtyCell);
+      row.appendChild(rateCell);
+      row.appendChild(totalCell);
+      row.appendChild(actionCell);
+      els.invoiceLines.appendChild(row);
     });
 
-    const discount = parseFloat(els.discountInput.value) || 0;
-    const tax = parseFloat(els.taxInput.value) || 0;
-    const subtotal = state.selectedLines.reduce((sum, line) => sum + line.qty * line.unit_price, 0);
-    const total = subtotal - discount + tax;
+    const discount = Number(els.discountInput.value) || 0;
+    const tax = Number(els.taxInput.value) || 0;
+
+    let subtotal = state.selectedLines.reduce((sum, line) => sum + Number(line.qty) * Number(line.unit_price), 0);
+    subtotal -= discount;
+    const total = subtotal + tax;
 
     els.subtotal.textContent = formatCurrency(subtotal);
     els.total.textContent = formatCurrency(total);
+
     els.finalizeGroup.classList.toggle("hidden", !state.currentInvoice);
   };
 
   const addLine = (type, item) => {
-    const key = type === "time"
-      ? `time:${item.time_entry_id}`
-      : type === "parts"
-        ? `parts:${item.part_usage_id}`
-        : `flat:${item.catalog_item_id}`;
+    const key = `${type}:${item.id ?? item.time_entry_id ?? item.part_usage_id ?? item.catalog_item_id}`;
     if (state.selectedKeys.has(key)) {
       return;
     }
-    const line = { key, line_type: "", source_type: "", source_id: null, description: "", qty: 1, unit_price: 0 };
+    const line = {
+      line_type: "flat",
+      description: "",
+      qty: 1,
+      unit_price: 0,
+      source_type: "flat_task",
+      source_id: null,
+    };
     if (type === "time") {
       const hours = (Number(item.minutes) || 0) / 60;
       line.line_type = "labor";
@@ -628,7 +580,9 @@
   const setActiveTab = (tab) => {
     state.activeTab = tab;
     els.tabs.forEach((tabBtn) => {
-      tabBtn.classList.toggle("active", tabBtn.dataset.tab === tab);
+      const isActive = tabBtn.dataset.tab === tab;
+      tabBtn.classList.toggle("active", isActive);
+      tabBtn.setAttribute("aria-selected", String(isActive));
     });
     els.panels.forEach((panel) => {
       panel.classList.toggle("hidden", panel.dataset.list !== tab);
@@ -754,6 +708,25 @@
     renderInvoice();
   };
 
+  const clearFilters = () => {
+    if (els.clientSelect) {
+      els.clientSelect.value = "";
+    }
+    if (els.projectSelect) {
+      els.projectSelect.value = "";
+    }
+    if (els.fromInput) {
+      els.fromInput.value = "";
+    }
+    if (els.toInput) {
+      els.toInput.value = "";
+    }
+    state.selectedClientId = null;
+    state.filters = { projectId: "", from: "", to: "" };
+    updateSelectionIndicator();
+    loadUnbilled();
+  };
+
   els.tabs.forEach((tabBtn) => {
     tabBtn.addEventListener("click", () => {
       setActiveTab(tabBtn.dataset.tab);
@@ -766,6 +739,7 @@
     state.filters.projectId = els.projectSelect.value;
     state.filters.from = els.fromInput.value;
     state.filters.to = els.toInput.value;
+    updateSelectionIndicator();
     loadUnbilled();
   });
 
@@ -790,6 +764,14 @@
   els.finalizeButton.addEventListener("click", finalizeInvoice);
   els.resetButton.addEventListener("click", resetBuilder);
 
+  if (els.clearFiltersButton) {
+    els.clearFiltersButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      clearFilters();
+    });
+  }
+
+  updateSelectionIndicator();
   updateProjectOptions();
   renderLists();
   renderInvoice();
@@ -797,4 +779,3 @@
 })();
 </script>
 {% endblock %}
-
