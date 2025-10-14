@@ -32,3 +32,12 @@ async def require_ui_or_token(
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
 ):
     return await require_api_key(request=request, x_api_key=x_api_key)
+
+
+# Historical dependency name used by routers.
+# Keep importing ``api_auth`` working by delegating to the current gatekeeper.
+async def api_auth(
+    request: Request,
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+):
+    return await require_api_key(request=request, x_api_key=x_api_key)
