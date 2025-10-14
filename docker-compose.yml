@@ -1,7 +1,7 @@
 services:
   tracker:
     build: .
-    container_name: time-tracker-dev
+    container_name: Productivity-Tracker
     environment:
       # --- Headless API key (kept as-is; required by /api/*) ---
       API_TOKEN: ${API_TOKEN:-CaRpoauTdDYdxQwWhWeXUQy}
