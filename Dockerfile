@@ -21,7 +21,8 @@ RUN pip install --no-cache-dir \
     pydantic \
     httpx \
     itsdangerous \
-    bcrypt
+    bcrypt \
+    alembic
 
 # Keep your original copy layout (copy the app/ dir into /app/app)
 COPY app /app/app
