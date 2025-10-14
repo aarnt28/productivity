@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir \
 COPY app /app/app
 
 # Your app listens on 8089 per CMD; expose that (your compose maps 8089:8089)
-EXPOSE 8089
+EXPOSE 8090
 
 # Same command you had (already using port 8089)
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8089"]
