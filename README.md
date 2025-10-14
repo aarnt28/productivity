@@ -303,30 +303,3 @@ curl -X POST -H "X-API-Key: $TOKEN" -H "Content-Type: application/json" \
       }' \
   http://localhost:8090/api/work/items/quick-issue
 ```
-
-- Quick Time Start (new): `/api/work/time/quick-start` (app/routers/work.py)
-  - Start time for a client using `labor_role_name` (or `labor_role_id`), with `client_id` or `client_key`/`client_name`. Auto-creates/uses an active work order.
-
-```
-curl -X POST -H "X-API-Key: $TOKEN" -H "Content-Type: application/json" \
-  -d '{
-        "client_name": "Client A",
-        "labor_role_name": "Support",
-        "notes": "Remote session"
-      }' \
-  http://localhost:8090/api/work/time/quick-start
-```
-
-- Quick Flat Invoice (new): `/api/billing/quick-flat` (app/routers/billing.py)
-  - Create a draft invoice with a single flat line for a client. Identify the item by `catalog_item_id` or `alias` (SKU/UPC/etc.). Provide `unit_price` if the item has no default price.
-
-```
-curl -X POST -H "X-API-Key: $TOKEN" -H "Content-Type: application/json" \
-  -d '{
-        "client_key": "client_a",
-        "alias": "FLAT-CLEANUP",
-        "qty": 1,
-        "unit_price": 95
-      }' \
-  http://localhost:8090/api/billing/quick-flat
-```
