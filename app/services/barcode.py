@@ -1,16 +1,14 @@
-# app/services/barcode.py
 from __future__ import annotations
+from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from typing import Optional, Tuple
-
 from app.models.sku_alias import SkuAlias
-from app.models.hardware import Hardware  # existing model in your repo
+from app.models.hardware import Hardware
 
 def resolve_any_code(db: Session, code: str) -> Optional[Tuple[Hardware, bool]]:
     """
-    Try matching a scanned code against Hardware.barcode first (exact),
-    then fall back to SkuAlias.alias. Returns (hardware, via_alias: bool) or None.
+    Try Hardware.barcode first, then SkuAlias.alias.
+    Returns (hardware, via_alias) or None.
     """
     code = (code or "").strip()
     if not code:
@@ -20,10 +18,9 @@ def resolve_any_code(db: Session, code: str) -> Optional[Tuple[Hardware, bool]]:
     if hw:
         return hw, False
 
-    alias = db.scalar(select(SkuAlias).where(SkuAlias.alias == code))
-    if alias:
-        hw = db.get(Hardware, alias.hardware_id)
+    alias_row = db.scalar(select(SkuAlias).where(SkuAlias.alias == code))
+    if alias_row:
+        hw = db.get(Hardware, alias_row.hardware_id)
         if hw:
             return hw, True
-
     return None

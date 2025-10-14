@@ -1,11 +1,9 @@
-# app/routers/api_catalog.py
 from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-
-from app.deps.auth import api_auth  # your existing dependency that accepts X-API-Key or UI session
 from app.db.session import SessionLocal
+from app.deps.auth import api_auth
 from app.models.sku_alias import SkuAlias
 from app.models.hardware import Hardware
 from app.schemas.catalog import AliasCreate, AliasOut, ResolveResult
@@ -30,15 +28,17 @@ def resolve_code(code: str, db: Session = Depends(get_db)):
 
 @router.post("/aliases", response_model=AliasOut, status_code=201, dependencies=[Depends(api_auth)])
 def add_alias(payload: AliasCreate, db: Session = Depends(get_db)):
-    # ensure hardware exists
     if not db.get(Hardware, payload.hardware_id):
         raise HTTPException(status_code=404, detail="Hardware not found")
-    # enforce uniqueness at app-level before DB constraint for nicer error
     exists = db.scalar(select(SkuAlias).where(SkuAlias.alias == payload.alias))
     if exists:
         raise HTTPException(status_code=409, detail="Alias already exists")
 
-    alias = SkuAlias(hardware_id=payload.hardware_id, alias=payload.alias.strip(), kind=payload.kind.strip())
+    alias = SkuAlias(
+        hardware_id=payload.hardware_id,
+        alias=payload.alias.strip(),
+        kind=payload.kind.strip() if payload.kind else "UPC",
+    )
     db.add(alias)
     db.commit()
     db.refresh(alias)

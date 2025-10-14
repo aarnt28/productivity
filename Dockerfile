@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends tzdata ca-certi
 ENV TZ=America/Chicago
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+# ENV DATABASE_URL=sqlite:///./data/tracker.db
 
 WORKDIR /app
 

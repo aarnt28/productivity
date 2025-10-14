@@ -108,6 +108,10 @@ app.include_router(api_inventory_router.router, prefix="")
 from .routers import address as address_router  # type: ignore
 app.include_router(address_router.router, prefix="")
 
+from app.routers import api_catalog, api_reports
+app.include_router(api_catalog.router)
+app.include_router(api_reports.router)
+
 # ---------- Exception handling ----------
 # Redirect HTML 401s to /login while keeping JSON 401s for API/headless clients.
 @app.exception_handler(StarletteHTTPException)
