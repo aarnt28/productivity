@@ -92,36 +92,36 @@ Conventions
 
 ## API Surface (new)
 
-Base path: `/api` (no version prefix for the new stack)
+Base path: `/api/v2`
 
-Catalog — `/api/catalog`
+Catalog - `/api/v2/catalog`
 
 - GET `/items?query=&limit=` → search by SKU or name
 - POST `/items` → upsert by `sku`; `CatalogItemCreate`
 - POST `/aliases` → attach alias (`UPC`/`EAN`/`MPN`/`VendorSKU`) to a `CatalogItem`
 - GET `/resolve/{alias}` → resolve any alias/SKU; first‑scan can auto‑create placeholder
 
-Inventory — `/api/inventory`
+Inventory - `/api/v2/inventory`
 
 - POST `/receipt` → receive to a `Warehouse` (creates `InventoryLot` + `StockLedger` receipt)
 - POST `/adjust` → positive adjustments create stock; negatives issue via FIFO with cost capture
 - GET `/stock?warehouse_id=` → on‑hand snapshot (per item) with total cost
 - GET `/ledger?from=&to=&warehouse_id=` → movement history filtered by ISO timestamps
 
-Work — `/api/work`
+Work - `/api/v2/work`
 
 - POST `/orders` → open a `WorkOrder`
 - POST `/time/start` → start timer; creates/opens `WorkOrder` as needed
 - POST `/time/stop` → stop latest or by explicit `time_entry_id`
 - POST `/parts/issue` → issue parts by alias/SKU with FIFO costing; returns `PartUsage` + ledger moves
 
-Billing — `/api/billing`
+Billing - `/api/v2/billing`
 
 - GET `/unbilled?client_id=` → unbilled time/parts/flat items
 - POST `/invoices` → build draft invoice from selected sources
 - POST `/invoices/{id}/finalize` → finalize as `sent` or `paid`
 
-Reports — `/api/reports`
+Reports - `/api/v2/reports`
 
 - GET `/daily-rollup?date=YYYY-MM-DD` → revenue breakdown (draft/invoiced/paid) and COGS via `StockLedger`
 
@@ -139,8 +139,8 @@ Base path: `/api/v1`
 
 Notes
 
-- `api_catalog.py` is legacy/in‑transition and currently mismatched with `app/services/barcode.py` and `app/schemas/catalog.py`. Prefer the new `/api/catalog` router for the catalog domain.
-- A reports router also exists for the new model at `app/routers/reports.py`. Prefer this for greenfield work.
+- `api_catalog.py` is legacy/in-transition and currently mismatched with `app/services/barcode.py` and `app/schemas/catalog.py`. Prefer the new `/api/v2/catalog` router for the catalog domain.
+- A reports router also exists for the new model at `app/routers/reports.py` under `/api/v2/reports`. Prefer this for greenfield work.
 
 
 ## Local Development
@@ -239,18 +239,18 @@ Representative coverage includes:
 TOKEN=your-api-token
 
 # Catalog: resolve or create minimal item by scan
-curl -H "X-API-Key: $TOKEN" http://localhost:8090/api/catalog/resolve/012345678905
+curl -H "X-API-Key: $TOKEN" http://localhost:8090/api/v2/catalog/resolve/012345678905
 
 # Catalog: add alias
 curl -X POST -H "X-API-Key: $TOKEN" -H "Content-Type: application/json" \
   -d '{"alias":"VND-ABC-789","kind":"VendorSKU","catalog_item_id":1}' \
-  http://localhost:8090/api/catalog/aliases
+  http://localhost:8090/api/v2/catalog/aliases
 
 # Inventory: ledger window
-curl -H "X-API-Key: $TOKEN" 'http://localhost:8090/api/inventory/ledger?from=2025-01-01&to=2025-01-31'
+curl -H "X-API-Key: $TOKEN" 'http://localhost:8090/api/v2/inventory/ledger?from=2025-01-01&to=2025-01-31'
 
 # Reports: daily rollup (normalized model)
-curl -H "X-API-Key: $TOKEN" 'http://localhost:8090/api/reports/daily-rollup?date=2025-01-15'
+curl -H "X-API-Key: $TOKEN" 'http://localhost:8090/api/v2/reports/daily-rollup?date=2025-01-15'
 ```
 
 
@@ -279,7 +279,6 @@ docker-compose.yml           # container entrypoint and env defaults
 Dockerfile                   # production image (Uvicorn @ 8090)
 ```
 
-
 ## Shortcuts-Friendly Endpoints
 
 - Clients (legacy table): `/api/v1/clients` (app/routers/clients.py)
@@ -288,7 +287,7 @@ Dockerfile                   # production image (Uvicorn @ 8090)
   - GET `/api/v1/clients/{client_key}` → single `{ client_key, client }`
   - POST/PATCH/DELETE require UI session or `X-API-Key`
 
-- Quick Issue (new): `/api/work/items/quick-issue` (app/routers/work.py)
+- Quick Issue (new): `/api/v2/work/items/quick-issue` (app/routers/work.py)
   - Minimal payload to issue a part to a client's active work order by barcode/SKU.
   - Accepts `client_id` or `client_key`/`client_name`, optional `project_id`, optional `warehouse_id` (uses only active warehouse if omitted), `alias`, and `qty`.
 
@@ -301,5 +300,58 @@ curl -X POST -H "X-API-Key: $TOKEN" -H "Content-Type: application/json" \
         "alias": "012345678905",
         "qty": 1
       }' \
-  http://localhost:8090/api/work/items/quick-issue
+  http://localhost:8090/api/v2/work/items/quick-issue
 ```
+
+- Quick Time Start (new): `/api/v2/work/time/quick-start` (app/routers/work.py)
+  - Start time for a client using `labor_role_name` (or `labor_role_id`), with `client_id` or `client_key`/`client_name`. Auto-creates/uses an active work order.
+
+```
+curl -X POST -H "X-API-Key: $TOKEN" -H "Content-Type: application/json" \
+  -d '{
+        "client_name": "Client A",
+        "labor_role_name": "Support",
+        "notes": "Remote session"
+      }' \
+  http://localhost:8090/api/v2/work/time/quick-start
+```
+
+- Quick Flat Invoice (new): `/api/v2/billing/quick-flat` (app/routers/billing.py)
+  - Create a draft invoice with a single flat line for a client. Identify the item by `catalog_item_id` or `alias` (SKU/UPC/etc.). Provide `unit_price` if the item has no default price.
+
+```
+curl -X POST -H "X-API-Key: $TOKEN" -H "Content-Type: application/json" \
+  -d '{
+        "client_key": "client_a",
+        "alias": "FLAT-CLEANUP",
+        "qty": 1,
+        "unit_price": 95
+      }' \
+  http://localhost:8090/api/v2/billing/quick-flat
+```
+
+
+## Shortcuts-Friendly Endpoints
+
+- Clients (legacy table): `/api/v1/clients` (app/routers/clients.py)
+  - GET `/api/v1/clients` → `{ clients, attribute_keys }`
+  - GET `/api/v1/clients/lookup?name=` → `{ client_key, client }`
+  - GET `/api/v1/clients/{client_key}` → single `{ client_key, client }`
+  - POST/PATCH/DELETE require UI session or `X-API-Key`
+
+- Quick Issue (new): `/api/v2/work/items/quick-issue` (app/routers/work.py)
+  - Minimal payload to issue a part to a client's active work order by barcode/SKU.
+  - Accepts `client_id` or `client_key`/`client_name`, optional `project_id`, optional `warehouse_id` (uses only active warehouse if omitted), `alias`, and `qty`.
+
+Example:
+
+```
+curl -X POST -H "X-API-Key: $TOKEN" -H "Content-Type: application/json" \
+  -d '{
+        "client_key": "client_a",
+        "alias": "012345678905",
+        "qty": 1
+      }' \
+  http://localhost:8090/api/v2/work/items/quick-issue
+```
+

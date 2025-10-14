@@ -24,7 +24,7 @@ from app.services.billing import BillingError, create_invoice as svc_create_invo
 from app.services.barcode import resolve_catalog_item
 from app.services.clientsync import resolve_client_key, get_client_entry
 
-router = APIRouter(prefix="/api/billing", tags=["billing"], dependencies=[Depends(api_auth)])
+router = APIRouter(prefix="/api/v2/billing", tags=["billing"], dependencies=[Depends(api_auth)])
 
 
 def get_db():
@@ -32,7 +32,7 @@ def get_db():
     try:
         yield db
     finally:
-    db.close()
+        db.close()
 
 
 @router.get("/unbilled", response_model=UnbilledResponse)

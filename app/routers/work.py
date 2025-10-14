@@ -37,7 +37,7 @@ from app.services.barcode import resolve_catalog_item
 from app.services.stock import StockError, issue_fifo
 from app.services.clientsync import resolve_client_key, get_client_entry
 
-router = APIRouter(prefix="/api/work", tags=["work"], dependencies=[Depends(api_auth)])
+router = APIRouter(prefix="/api/v2/work", tags=["work"], dependencies=[Depends(api_auth)])
 
 
 def get_db():

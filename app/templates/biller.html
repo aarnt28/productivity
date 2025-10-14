@@ -596,7 +596,7 @@
     }
     els.statusMessage.textContent = "Loading unbilled items…";
     try {
-      const response = await fetch(`/api/billing/unbilled?${params.toString()}`, {
+      const response = await fetch(`/api/v2/billing/unbilled?${params.toString()}`, {
         credentials: "same-origin",
       });
       if (!response.ok) {
@@ -648,7 +648,7 @@
     };
     els.statusMessage.textContent = "Creating draft invoice…";
     try {
-      const response = await fetch("/api/billing/invoices", {
+      const response = await fetch("/api/v2/billing/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
@@ -677,7 +677,7 @@
     const status = els.finalizeStatus.value || "sent";
     els.statusMessage.textContent = "Finalizing invoice…";
     try {
-      const response = await fetch(`/api/billing/invoices/${state.currentInvoice.id}/finalize`, {
+      const response = await fetch(`/api/v2/billing/invoices/${state.currentInvoice.id}/finalize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
