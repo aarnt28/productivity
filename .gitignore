@@ -27,7 +27,7 @@ Thumbs.db
 !.vscode/settings.json
 
 # Docker
-*.env
-.env*
+# *.env
+# .env*
 docker-compose.override.yml
 data/data.db

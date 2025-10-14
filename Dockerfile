@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends tzdata ca-certi
 ENV TZ=America/Chicago
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV ALEMBIC_CONFIG=/app/alembic.ini
 # ENV DATABASE_URL=sqlite:///./data/tracker.db
 
 WORKDIR /app
@@ -26,6 +27,8 @@ RUN pip install --no-cache-dir \
 
 # Keep your original copy layout (copy the app/ dir into /app/app)
 COPY app /app/app
+# COPY alembic.ini ./           # ← must exist at build time
+# COPY alembic ./alembic        # ← the folder with env.py and versions/
 
 # Your app listens on 8089 per CMD; expose that (your compose maps 8089:8089)
 EXPOSE 8090
