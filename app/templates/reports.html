@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Reports</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <link rel="icon" href="/static/favicon.ico" />
+  <style>
+    .reports-container {
+      display: grid;
+      gap: 24px;
+      margin-bottom: 48px;
+    }
+
+    .summary-grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    @media (min-width: 900px) {
+      .summary-grid {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      }
+    }
+
+    .summary-card {
+      background: var(--panel);
+      border-radius: var(--radius);
+      border: 1px solid rgba(0, 145, 234, 0.12);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .summary-card__kicker {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    .summary-card__value {
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .summary-card__meta {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .reports-section {
+      background: var(--panel);
+      border-radius: var(--radius);
+      border: 1px solid rgba(0, 145, 234, 0.12);
+      box-shadow: var(--shadow);
+      padding: 0 0 12px;
+    }
+
+    .reports-section__header {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .reports-section__title {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .reports-section__lede {
+      margin: 4px 0 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .table-scroll {
+      padding: 0 20px;
+    }
+
+    .table td.mono,
+    .table th.mono {
+      white-space: nowrap;
+    }
+
+    .empty-state {
+      padding: 24px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body class="dashboard">
+  <header class="app-header">
+    <div class="container">
+      <div class="branding">
+        <img
+          src="/static/img/vip-full-hd-transparant-cropped-halfsize.png"
+          srcset="/static/img/vip-full-hd-transparant-cropped-halfsize.png 1x, /static/img/vip-full-hd-transparant-384x150.png 2x"
+          alt="VIP Clouds logo"
+          class="branding__logo"
+        />
+        <div class="branding__meta">
+          <span class="branding__kicker">VIP Clouds</span>
+          <h1 class="logo"><a href="/">Time Tracker</a></h1>
+        </div>
+      </div>
+      <h2 class="page-title">Reports</h2>
+      <div class="actions">
+        <a class="btn btn-ghost" href="/tickets">Back to Tickets</a>
+      </div>
+      <nav class="links">
+        <a href="/" class="pill">Dashboard</a>
+        <a href="/tickets" class="pill">Tickets</a>
+        <a href="/hardware" class="pill">Hardware</a>
+        <a href="/inventory" class="pill">Inventory</a>
+        <a href="/clients" class="pill">Clients</a>
+        <a href="/reports" class="pill active" aria-current="page">Reports</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container reports-container">
+    <section class="summary-grid">
+      <article class="summary-card">
+        <span class="summary-card__kicker">Total revenue</span>
+        <span class="summary-card__value">{{ metrics.totals.revenue_total | fmt_currency }}</span>
+        <p class="summary-card__meta">Time: {{ metrics.totals.revenue_time | fmt_currency }} · Hardware: {{ metrics.totals.revenue_hardware | fmt_currency }}</p>
+      </article>
+      <article class="summary-card">
+        <span class="summary-card__kicker">Billable hours</span>
+        <span class="summary-card__value">{{ '%.2f'|format(metrics.totals.billable_hours) }}</span>
+        <p class="summary-card__meta">Average per ticket: {{ '%.2f'|format(metrics.totals.average_hours_per_time_ticket) }} hours</p>
+      </article>
+      <article class="summary-card">
+        <span class="summary-card__kicker">Outstanding revenue</span>
+        <span class="summary-card__value">{{ metrics.totals.unsent_revenue | fmt_currency }}</span>
+        <p class="summary-card__meta">Across {{ metrics.totals.unsent_ticket_count }} unsent tickets</p>
+      </article>
+      <article class="summary-card">
+        <span class="summary-card__kicker">Ticket mix</span>
+        <span class="summary-card__value">{{ metrics.totals.tickets_total }}</span>
+        <p class="summary-card__meta">Time: {{ metrics.totals.time_ticket_count }} · Hardware: {{ metrics.totals.hardware_ticket_count }} · Open: {{ metrics.totals.tickets_open }}</p>
+      </article>
+      <article class="summary-card">
+        <span class="summary-card__kicker">Average revenue per ticket</span>
+        <span class="summary-card__value">{{ metrics.totals.average_revenue_per_ticket | fmt_currency }}</span>
+        <p class="summary-card__meta">Clients with activity: {{ metrics.totals.clients_with_activity }}</p>
+      </article>
+    </section>
+
+    <section class="reports-section">
+      <header class="reports-section__header">
+        <h3 class="reports-section__title">Revenue by client</h3>
+        <p class="reports-section__lede">Combines time and hardware revenue to highlight top accounts and outstanding totals.</p>
+      </header>
+      {% if metrics.revenue_by_client %}
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Client</th>
+              <th class="mono">Billable Hours</th>
+              <th class="mono">Time Revenue</th>
+              <th class="mono">Hardware Revenue</th>
+              <th class="mono">Total Revenue</th>
+              <th class="mono">Outstanding</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in metrics.revenue_by_client %}
+            <tr>
+              <td>{{ row.client }}</td>
+              <td class="mono">{{ '%.2f'|format(row.billable_hours) }}</td>
+              <td class="mono">{{ row.time_revenue | fmt_currency }}</td>
+              <td class="mono">{{ row.hardware_revenue | fmt_currency }}</td>
+              <td class="mono">{{ row.total_revenue | fmt_currency }}</td>
+              <td class="mono">{{ row.unsent_revenue | fmt_currency }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state">No ticket activity yet. Create tickets to populate this report.</div>
+      {% endif %}
+    </section>
+
+    <section class="reports-section">
+      <header class="reports-section__header">
+        <h3 class="reports-section__title">Ticket volume by client</h3>
+        <p class="reports-section__lede">Track where your team spends time and which clients rely on hardware versus labor.</p>
+      </header>
+      {% if metrics.tickets_by_client %}
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Client</th>
+              <th class="mono">Total Tickets</th>
+              <th class="mono">Time</th>
+              <th class="mono">Hardware</th>
+              <th class="mono">Open</th>
+              <th class="mono">Completed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in metrics.tickets_by_client %}
+            <tr>
+              <td>{{ row.client }}</td>
+              <td class="mono">{{ row.total }}</td>
+              <td class="mono">{{ row.time }}</td>
+              <td class="mono">{{ row.hardware }}</td>
+              <td class="mono">{{ row.open }}</td>
+              <td class="mono">{{ row.completed }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state">No ticket activity yet. Create tickets to populate this report.</div>
+      {% endif %}
+    </section>
+
+    <section class="reports-section">
+      <header class="reports-section__header">
+        <h3 class="reports-section__title">Top hardware items</h3>
+        <p class="reports-section__lede">Identify which items drive the most sales volume.</p>
+      </header>
+      {% if metrics.top_hardware_items %}
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th class="mono">Units Sold</th>
+              <th class="mono">Revenue</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in metrics.top_hardware_items %}
+            <tr>
+              <td>{{ row.description }}</td>
+              <td class="mono">{{ row.quantity }}</td>
+              <td class="mono">{{ row.revenue | fmt_currency }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state">No hardware sales captured yet.</div>
+      {% endif %}
+    </section>
+
+    {% if metrics.clients_missing_rates %}
+    <section class="reports-section">
+      <header class="reports-section__header">
+        <h3 class="reports-section__title">Action items</h3>
+        <p class="reports-section__lede">Add support rates for these clients to unlock accurate time-based revenue.</p>
+      </header>
+      <div class="table-scroll">
+        <ul style="padding: 18px 20px 4px; margin: 0; list-style: disc inside; display: grid; gap: 6px;">
+          {% for name in metrics.clients_missing_rates %}
+          <li>{{ name }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </section>
+    {% endif %}
+  </main>
+</body>
+</html>

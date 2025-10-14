@@ -1,0 +1,56 @@
+{% if events %}
+  {% for event in events %}
+  <tr>
+    <td class="mono">{{ event.created_at | fmt_dt_compact }}</td>
+    <td>{{ event.hardware_description or 'Unknown' }}<br /><small class="mono">{{ event.hardware_barcode }}</small></td>
+    <td class="mono">{{ event.change }}</td>
+    <td>{{ event.source }}</td>
+    <td>{{ event.note }}</td>
+    <td>
+      {% if event.counterparty_name %}
+        {{ event.counterparty_name }}
+        {% if event.counterparty_type %}
+          <br /><small class="tag">{{ event.counterparty_type }}</small>
+        {% endif %}
+      {% endif %}
+    </td>
+    <td class="mono">
+      {% if event.actual_cost is not none %}
+        {{ event.actual_cost | fmt_currency }}
+        {% if event.unit_cost is not none %}
+          <br /><small class="mono">({{ event.unit_cost | fmt_currency }}/unit)</small>
+        {% endif %}
+      {% endif %}
+    </td>
+    <td class="mono">
+      {% if event.sale_price_total is not none %}
+        {{ event.sale_price_total | fmt_currency }}
+        {% if event.sale_unit_price is not none %}
+          <br /><small class="mono">({{ event.sale_unit_price | fmt_currency }}/unit)</small>
+        {% endif %}
+      {% endif %}
+    </td>
+    <td class="mono">
+      {% if event.profit_total is not none %}
+        {{ event.profit_total | fmt_currency }}
+        {% if event.profit_unit is not none %}
+          <br /><small class="mono">({{ event.profit_unit | fmt_currency }}/unit)</small>
+        {% endif %}
+      {% endif %}
+    </td>
+    <td class="td-action">
+      <form action="/inventory/events/{{ event.id }}/delete" method="post" class="inline">
+        <button class="btn btn-danger btn-icon" type="submit" aria-label="Delete inventory event {{ event.id }}">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M9 3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1h5v2H4V3h5zm1 0h4v1h-4V3zM8 9h2v10H8V9zm4 0h2v10h-2V9zm4 0h2v10h-2V9z"/>
+          </svg>
+        </button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+{% else %}
+  <tr>
+    <td colspan="9" class="empty">No activity yet.</td>
+  </tr>
+{% endif %}

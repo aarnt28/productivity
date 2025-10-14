@@ -1,0 +1,28 @@
+{% for r in rows %}
+<tr class="row" data-id="{{ r.id }}">
+  <td class="mono" data-label="Barcode"><a href="#" class="edit-hardware" data-id="{{ r.id }}" style="color:inherit; text-decoration:none;">{{ r.barcode }}</a></td>
+  <td data-label="Description">{{ r.description }}</td>
+  <td class="mono" data-label="Acquisition Cost">{{ r.acquisition_cost or '' }}</td>
+  <td class="mono" data-label="Sales Price">{{ r.sales_price or '' }}</td>
+  <td data-label="Common Vendors">
+    {% if r.common_vendors %}
+      {{ r.common_vendors | join(', ') }}
+    {% endif %}
+  </td>
+  <td class="mono" data-label="Avg Unit Cost">
+    {% if r.average_unit_cost is not none %}
+      {{ r.average_unit_cost | fmt_currency }}
+    {% endif %}
+  </td>
+  <td class="mono" data-label="Created">{{ r.created_at|fmt_dt }}</td>
+  <td class="td-action" data-label="Actions">
+    <form action="/ui/hardware/{{ r.id }}/delete" method="post" class="inline">
+      <button class="btn btn-danger btn-icon" type="submit" aria-label="Delete hardware {{ r.barcode }}">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path fill="currentColor" d="M9 3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1h5v2H4V3h5zm1 0h4v1h-4V3zM8 9h2v10H8V9zm4 0h2v10h-2V9zm4 0h2v10h-2V9z"/>
+        </svg>
+      </button>
+    </form>
+  </td>
+</tr>
+{% endfor %}

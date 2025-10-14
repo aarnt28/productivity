@@ -1,0 +1,53 @@
+{% for r in rows %}
+<tr class="row {{ 'is-done' if r.completed else 'is-open' }} {{ 'is-sent' if r.sent else 'is-unsent' }}" data-id="{{ r.id }}" data-sent="{{ 1 if r.sent else 0 }}">
+  <td class="mono" data-column-key="id" data-label="ID" data-sort-value="{{ r.id }}">
+    <a href="#" class="js-edit-ticket" data-id="{{ r.id }}" style="color:inherit; text-decoration:none;">{{ r.id }}</a>
+  </td>
+  <td data-column-key="client" data-label="Client" data-sort-value="{{ (r.client or '')|escape }}">
+    <a href="#" class="open-client" data-client-key="{{ r.client_key }}">{{ r.client }}</a>
+  </td>
+  <td class="mono" data-column-key="client_key" data-label="Client Key" data-sort-value="{{ r.client_key }}">{{ r.client_key }}</td>
+  <td class="mono hide-mobile" data-column-key="start" data-label="Start" data-sort-value="{{ r.start_iso or '' }}">{{ r.start_iso | fmt_dt }}</td>
+  <td class="mono hide-mobile" data-column-key="end" data-label="End" data-sort-value="{{ r.end_iso or '' }}">{{ r.end_iso | fmt_dt }}</td>
+  <td class="mono" data-column-key="minutes" data-label="Minutes" data-sort-value="{{ r.minutes }}">{{ r.minutes }}</td>
+  <td class="mono" data-column-key="rounded_hours" data-label="Rounded Hrs" data-sort-value="{{ r.rounded_hours }}">{{ r.rounded_hours }}</td>
+  <td class="mono" data-column-key="entry_type" data-label="Type" data-sort-value="{{ r.entry_type }}">{{ r.entry_type }}</td>
+  <td class="mono" data-column-key="hardware_price" data-label="Hardware Price" data-sort-value="{{ r.hardware_sales_price or '' }}">{{ r.hardware_sales_price or '' }}</td>
+  <td class="note" data-column-key="notes" data-label="Notes / Hardware" data-full-note="{{ (r.note or '')|escape }}" data-is-hardware="{{ 1 if r.entry_type == 'hardware' else 0 }}">
+    <button class="note-preview-btn" type="button">
+      {% if r.entry_type == 'hardware' %}
+        <strong>{{ r.hardware_description or '(no description)' }}</strong>
+      {% else %}
+        {{ r.note or '' }}
+      {% endif %}
+    </button>
+  </td>
+  <td class="mono invoice" data-column-key="invoice_number" data-label="Invoice" data-sort-value="{{ r.invoice_number or '' }}">
+    <input type="text" class="invoice-input" data-id="{{ r.id }}" value="{{ r.invoice_number or '' }}" placeholder="Invoice #" />
+  </td>
+  <td class="mono" data-column-key="invoiced_total" data-label="Invoiced Total" data-sort-value="{{ r.invoiced_total or '' }}">
+    <input type="text" class="mono invoiced-total-input" data-id="{{ r.id }}" value="{{ r.invoiced_total or '' }}" placeholder="Amount" />
+  </td>
+  <td class="mono" data-column-key="calculated_value" data-label="Calculated Value" data-sort-value="{{ r.calculated_value or '' }}">
+    {{ r.calculated_value | fmt_currency if r.calculated_value else '' }}
+  </td>
+  <td class="td-action" data-column-key="status" data-label="Status / Actions" data-sort-value="{{ 1 if r.completed else 0 }}">
+    <div class="status-group">
+      <label class="pill pill-checkbox status-pill {{ 'ok' if r.completed else '' }}">
+        <input type="checkbox" class="js-complete-checkbox" data-id="{{ r.id }}" {{ 'checked' if r.completed }} />
+        <span>{{ 'Added to QB' if r.completed else 'Open' }}</span>
+      </label>
+      <label class="pill pill-checkbox status-pill {{ 'ok' if r.sent else '' }}">
+        <input type="checkbox" class="js-sent-checkbox" data-id="{{ r.id }}" {{ 'checked' if r.sent }} />
+        <span>{{ 'Sent' if r.sent else 'Not Sent' }}</span>
+      </label>
+    </div>
+    <button class="pill js-toggle-status {{ 'ok' if r.completed else '' }}" type="button" data-id="{{ r.id }}" data-completed="{{ 1 if r.completed else 0 }}">{{ 'Added to QB' if r.completed else 'Open' }}</button>
+    <button class="btn btn-danger btn-icon js-delete-ticket" type="button" data-id="{{ r.id }}" aria-label="Delete ticket {{ r.id }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path fill="currentColor" d="M9 3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1h5v1h-2v16a2 2 0 0 1-2.1 2H8.1A2 2 0 0 1 6 20V4H4V3h5zm10 0h-4v1h-4V3zM8 9h2v10H8V9zm4 0h2v10h-2V9zm4 0h2v10h-2V9z"/>
+      </svg>
+    </button>
+  </td>
+</tr>
+{% endfor %}

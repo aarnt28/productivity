@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Hardware</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <link rel="icon" href="/static/favicon.ico" />
+</head>
+<body class="dashboard">
+  <header class="app-header">
+    <div class="container">
+      <div class="branding">
+        <img
+          src="/static/img/vip-full-hd-transparant-cropped-halfsize.png"
+          srcset="/static/img/vip-full-hd-transparant-cropped-halfsize.png 1x, /static/img/vip-full-hd-transparant-384x150.png 2x"
+          alt="VIP Clouds logo"
+          class="branding__logo"
+        />
+        <div class="branding__meta">
+          <span class="branding__kicker">VIP Clouds</span>
+          <h1 class="logo"><a href="/">Time Tracker</a></h1>
+        </div>
+      </div>
+      <h2 class="page-title">Hardware</h2>
+      <div class="actions">
+        <button class="btn" type="button" id="new-hardware">New Hardware</button>
+      </div>
+      <nav class="links">
+        <a href="/" class="pill">Dashboard</a>
+        <a href="/tickets" class="pill">Tickets</a>
+        <a href="/hardware" class="pill active" aria-current="page">Hardware</a>
+        <a href="/inventory" class="pill">Inventory</a>
+        <a href="/clients" class="pill">Clients</a>
+        <a href="/reports" class="pill">Reports</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="table-wrap">
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th class="mono">Barcode</th>
+              <th>Description</th>
+              <th class="mono">Acquisition Cost</th>
+              <th class="mono">Sales Price</th>
+              <th>Common Vendors</th>
+              <th class="mono">Avg Unit Cost</th>
+              <th class="mono">Created</th>
+              <th class="th-action">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="hardware-rows">
+            {% include "_hardware_rows.html" with context %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="hardware-modal" class="modal-root" style="display:none;">
+    <div class="modal-card modal-card--medium">
+      <header class="modal-head">
+        <h2 id="hardware-modal-title" class="modal-title">New Hardware</h2>
+        <button id="hardware-modal-close" class="btn" type="button">Close</button>
+      </header>
+      <form id="hardware-form" class="modal-form">
+        <input type="hidden" name="id" />
+        <div class="form-grid two-column">
+          <label class="barcode-field">
+            <span class="barcode-field__label">Barcode</span>
+            <div class="barcode-field__controls">
+              <input name="barcode" required class="mono" aria-describedby="hardware-scan-help" />
+              <button class="btn-ghost barcode-scan-btn" type="button" id="hardware-scan">Scan barcode</button>
+            </div>
+            <p class="barcode-help" id="hardware-scan-help">Scan with your device's camera or enter the code manually.</p>
+            <p class="barcode-status" id="hardware-scan-status" role="status" aria-live="polite"></p>
+          </label>
+          <label>Description<input name="description" required /></label>
+          <label>Acquisition Cost<input name="acquisition_cost" class="mono" /></label>
+          <label>Sales Price<input name="sales_price" class="mono" /></label>
+        </div>
+        <div class="barcode-scanner-overlay" id="hardware-scanner-overlay" hidden aria-hidden="true">
+          <div class="barcode-scanner__surface" role="dialog" aria-labelledby="hardware-scanner-title">
+            <div class="barcode-scanner__header">
+              <h3 class="barcode-scanner__title" id="hardware-scanner-title">Scan barcode</h3>
+              <button class="btn-ghost barcode-scanner__close" type="button" id="hardware-scanner-close">Close</button>
+            </div>
+            <video class="barcode-scanner__video" id="hardware-scanner-video" autoplay muted playsinline></video>
+            <p class="barcode-scanner__hint">Align the barcode within the frame.</p>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn" type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    function getApiToken(){ return window.localStorage.getItem('api_token') || ''; }
+    function setApiToken(t){ if (t) window.localStorage.setItem('api_token', t); }
+    function apiHeaders(json=true){
+      const h = {};
+      if (json) h['Content-Type'] = 'application/json';
+      const t = getApiToken();
+      if (t) h['X-API-Key'] = t;
+      return h;
+    }
+    async function safeFetch(url, opts={}, retry=true){
+      const res = await fetch(url, opts);
+      if (res.status === 401 && retry){
+        const t = window.prompt('Enter API token');
+        if (!t) return res;
+        setApiToken(t);
+        const newOpts = Object.assign({}, opts);
+        newOpts.headers = Object.assign({}, opts.headers || {}, {'X-API-Key': t});
+        return safeFetch(url, newOpts, false);
+      }
+      return res;
+    }
+
+    const modal = document.getElementById('hardware-modal');
+    const title = document.getElementById('hardware-modal-title');
+    const closeBtn = document.getElementById('hardware-modal-close');
+    const form = document.getElementById('hardware-form');
+    const btnNew = document.getElementById('new-hardware');
+    const hardwareRows = document.getElementById('hardware-rows');
+    const scanBtn = form.querySelector('#hardware-scan');
+    const scanStatus = form.querySelector('#hardware-scan-status');
+    const scannerOverlay = document.getElementById('hardware-scanner-overlay');
+    const scannerVideo = document.getElementById('hardware-scanner-video');
+    const scannerClose = document.getElementById('hardware-scanner-close');
+
+    let scannerStream = null;
+    let barcodeDetector = null;
+    let scanAnimation = null;
+    let scannerActive = false;
+    let nativeScannerActive = false;
+    let zxingReader = null;
+    let zxingLoader = null;
+    let statusTimer = null;
+
+    function setScanStatus(message, isError=false){
+      if (!scanStatus) return;
+      window.clearTimeout(statusTimer);
+      scanStatus.textContent = message || '';
+      if (isError){
+        scanStatus.classList.add('is-error');
+      } else {
+        scanStatus.classList.remove('is-error');
+      }
+      if (message && !isError){
+        statusTimer = window.setTimeout(function(){
+          if (!scannerActive){
+            scanStatus.textContent = '';
+            scanStatus.classList.remove('is-error');
+          }
+        }, 4000);
+      }
+    }
+
+    function ensureGetUserMedia(){
+      if (!('mediaDevices' in navigator)){
+        navigator.mediaDevices = {};
+      }
+      if (typeof navigator.mediaDevices.getUserMedia === 'function'){
+        return true;
+      }
+
+      const legacy = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+      if (legacy){
+        navigator.mediaDevices.getUserMedia = function(constraints){
+          return new Promise(function(resolve, reject){
+            legacy.call(navigator, constraints, resolve, reject);
+          });
+        };
+        return true;
+      }
+
+      return false;
+    }
+
+    function hasNativeBridge(){
+      return Boolean(
+        window.webkit &&
+        window.webkit.messageHandlers &&
+        window.webkit.messageHandlers.barcodeScanner
+      );
+    }
+
+    function hasCameraSupport(){
+      // We support camera either via web getUserMedia or an in-app native bridge.
+      return ensureGetUserMedia() || hasNativeBridge();
+    }
+
+    async function ensureZXing(){
+      if (window.ZXingBrowser) return window.ZXingBrowser;
+      if (zxingLoader) return zxingLoader;
+      zxingLoader = new Promise(function(resolve, reject){
+        const existing = document.getElementById('zxing-lib');
+        if (existing){
+          existing.addEventListener('load', () => resolve(window.ZXingBrowser));
+          existing.addEventListener('error', () => reject(new Error('Failed to load barcode library')));
+          return;
+        }
+        const script = document.createElement('script');
+        script.id = 'zxing-lib';
+        script.async = true;
+        script.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js';
+        script.onload = () => resolve(window.ZXingBrowser);
+        script.onerror = () => reject(new Error('Failed to load barcode library'));
+        document.head.appendChild(script);
+      });
+      try {
+        return await zxingLoader;
+      } catch (err) {
+        zxingLoader = null;
+        throw err;
+      }
+    }
+
+    function stopNativeBridge(){
+      if (!nativeScannerActive || !hasNativeBridge()) return;
+      nativeScannerActive = false;
+      try {
+        window.webkit.messageHandlers.barcodeScanner.postMessage({ action: 'stop' });
+      } catch (err) {
+        console.warn('Failed to stop native barcode scanner', err);
+      }
+    }
+
+    function stopScanner(){
+      scannerActive = false;
+      if (scanAnimation){
+        window.cancelAnimationFrame(scanAnimation);
+        scanAnimation = null;
+      }
+      if (zxingReader){
+        try { zxingReader.reset(); } catch (err) { /* ignore */ }
+      }
+      if (scannerVideo){
+        try { scannerVideo.pause(); } catch (err) { /* ignore */ }
+        scannerVideo.srcObject = null;
+      }
+      if (scannerStream){
+        scannerStream.getTracks().forEach(function(track){ track.stop(); });
+        scannerStream = null;
+      }
+      if (scannerOverlay){
+        scannerOverlay.hidden = true;
+        scannerOverlay.setAttribute('aria-hidden', 'true');
+      }
+      stopNativeBridge();
+      if (scanBtn && hasCameraSupport()){
+        scanBtn.disabled = false;
+      }
+    }
+
+    function handleDecoded(rawValue){
+      if (!rawValue) return;
+      const text = String(rawValue).trim();
+      if (!text) return;
+      stopScanner();
+      form.elements.barcode.value = text;
+      setScanStatus(`Scanned barcode: ${text}`);
+      form.elements.barcode.focus();
+    }
+
+    function startNativeDetection(){
+      if (!scannerActive || !barcodeDetector) return;
+      const detect = async function(){
+        if (!scannerActive) return;
+        try {
+          const results = await barcodeDetector.detect(scannerVideo);
+          if (results && results.length){
+            const result = results[0];
+            const candidate = result.rawValue ?? result.rawValue ?? '';
+            if (candidate){
+              handleDecoded(candidate);
+              return;
+            }
+            return;
+          }
+        } catch (err) {
+          console.warn('BarcodeDetector error', err);
+        }
+        scanAnimation = window.requestAnimationFrame(detect);
+      };
+      detect();
+    }
+
+    async function startZXingDetection(){
+      const ZXingBrowser = await ensureZXing();
+      if (!ZXingBrowser) throw new Error('ZXing unavailable');
+      if (!zxingReader){
+        zxingReader = new ZXingBrowser.BrowserMultiFormatReader();
+      }
+      if (!scannerActive) return;
+      await zxingReader.decodeFromVideoDevice(null, scannerVideo, function(result, err){
+        if (result && scannerActive){
+          handleDecoded(result.getText());
+        }
+        if (err && !(err instanceof ZXingBrowser.NotFoundException)){
+          console.warn('ZXing error', err);
+        }
+      });
+    }
+
+    function startNativeBridge(){
+      if (!hasNativeBridge()) return false;
+      try {
+        nativeScannerActive = true;
+        scannerActive = true;
+        setScanStatus('Opening camera scanner…');
+        window.webkit.messageHandlers.barcodeScanner.postMessage({ action: 'start', source: 'hardware-form' });
+        return true;
+      } catch (err) {
+        nativeScannerActive = false;
+        scannerActive = false;
+        console.error('Failed to invoke native barcode scanner', err);
+        setScanStatus('Unable to open the camera scanner. Enter the barcode manually.', true);
+        return false;
+      }
+    }
+
+    async function openScanner(){
+      if (!hasCameraSupport() || scannerActive) return;
+      setScanStatus('');
+      if (scanBtn){
+        scanBtn.disabled = true;
+      }
+
+      if (hasNativeBridge()){
+        if (startNativeBridge()){
+          return;
+        }
+      }
+
+      if (scannerOverlay){
+        scannerOverlay.hidden = false;
+        scannerOverlay.setAttribute('aria-hidden', 'false');
+      }
+      try {
+        scannerStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } }
+        });
+        if (!scannerVideo) throw new Error('Missing video element');
+        scannerVideo.srcObject = scannerStream;
+        scannerVideo.playsInline = true;
+        scannerVideo.muted = true;
+        await scannerVideo.play();
+        scannerActive = true;
+
+        if ('BarcodeDetector' in window){
+          try {
+            barcodeDetector = barcodeDetector || new window.BarcodeDetector({
+              formats: ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','itf','qr_code']
+            });
+          } catch (err) {
+            console.warn('BarcodeDetector init failed', err);
+            barcodeDetector = null;
+          }
+        }
+
+        if (barcodeDetector){
+          startNativeDetection();
+        } else {
+          await startZXingDetection();
+        }
+      } catch (err) {
+        console.error('Unable to start scanner', err);
+        if (hasNativeBridge() && startNativeBridge()){
+          return;
+        }
+        setScanStatus('Unable to access the camera. Enter the barcode manually.', true);
+        stopScanner();
+      }
+    }
+
+    function openModal(data){
+      stopScanner();
+      if (hasCameraSupport()){
+        setScanStatus('');
+      } else {
+        setScanStatus('Camera scanning is unavailable on this device. Enter the barcode manually.', true);
+      }
+      modal.style.display = 'block';
+      form.reset();
+      if (data){
+        title.textContent = `Edit Hardware (${data.barcode})`;
+        form.elements.id.value = data.id;
+        form.elements.barcode.value = data.barcode || '';
+        form.elements.description.value = data.description || '';
+        form.elements.acquisition_cost.value = data.acquisition_cost || '';
+        form.elements.sales_price.value = data.sales_price || '';
+      } else {
+        title.textContent = 'New Hardware';
+        form.elements.id.value = '';
+      }
+      form.elements.barcode.focus();
+    }
+
+    function closeModal(){
+      stopScanner();
+      modal.style.display = 'none';
+    }
+
+    async function loadHardware(id){
+      if (!id) return;
+      try {
+        const res = await safeFetch(`/api/v1/hardware/${id}`, { headers: apiHeaders(false) });
+        if (!res.ok) throw new Error('failed hardware fetch');
+        const data = await res.json();
+        openModal(data);
+      } catch (err) {
+        window.alert('Failed to load hardware item');
+      }
+    }
+
+    async function refreshHardwareRows(){
+      if (!hardwareRows) return;
+      try {
+        const res = await fetch('/ui/hardware_table', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('refresh failed');
+        const html = await res.text();
+        hardwareRows.innerHTML = html;
+      } catch (err) {
+        console.error('hardware refresh failed', err);
+        window.alert('Failed to refresh hardware list. Please reload the page.');
+      }
+    }
+
+    closeBtn.addEventListener('click', closeModal);
+    btnNew.addEventListener('click', function(){ openModal(null); });
+
+    if (scanBtn){
+      if (!hasCameraSupport()){
+        scanBtn.disabled = true;
+        scanBtn.setAttribute('title', 'Camera access is unavailable on this device. Enter the barcode manually.');
+        setScanStatus('Camera scanning is unavailable on this device. Enter the barcode manually.', true);
+      } else {
+        scanBtn.addEventListener('click', openScanner);
+      }
+    }
+
+    if (scannerClose){
+      scannerClose.addEventListener('click', function(){
+        stopScanner();
+        setScanStatus('Scanning cancelled. You can enter the barcode manually.');
+      });
+    }
+
+    if (scannerOverlay){
+      scannerOverlay.addEventListener('click', function(e){
+        if (e.target === scannerOverlay){
+          stopScanner();
+          setScanStatus('Scanning cancelled. You can enter the barcode manually.');
+        }
+      });
+    }
+
+    window.appNativeBarcodeScanned = function(payload){
+      const value = (payload && typeof payload === 'object') ? (payload.barcode || payload.code || payload.value || '') : payload;
+      if (!value){
+        setScanStatus('Unable to read barcode from native scanner.', true);
+        stopScanner();
+        return;
+      }
+      handleDecoded(value);
+    };
+
+    window.appNativeBarcodeScanCancelled = function(){
+      stopScanner();
+      setScanStatus('Scanning cancelled. You can enter the barcode manually.');
+    };
+
+    window.appNativeBarcodeScanFailed = function(payload){
+      const message = (payload && typeof payload === 'object' && payload.message) ? payload.message : 'Unable to access the camera. Enter the barcode manually.';
+      stopScanner();
+      setScanStatus(message, true);
+    };
+
+    if (hardwareRows){
+      hardwareRows.addEventListener('click', function(e){
+        const row = e.target.closest('tr.row');
+        if (!row) return;
+        if (e.target.closest('button, input, textarea, select, label')) return;
+        const link = e.target.closest('a.edit-hardware');
+        if (link) e.preventDefault();
+        const id = row.dataset.id;
+        if (!id) return;
+        loadHardware(id);
+      });
+
+      hardwareRows.addEventListener('submit', async function(e){
+        const formEl = e.target.closest('form');
+        if (!formEl || !formEl.classList.contains('inline')) return;
+        e.preventDefault();
+        const action = formEl.getAttribute('action') || formEl.action;
+        try {
+          const res = await fetch(action, { method: 'POST', credentials: 'same-origin' });
+          if (!res.ok) throw new Error('delete failed');
+          await refreshHardwareRows();
+        } catch (err) {
+          console.error('hardware delete failed', err);
+          window.alert('Delete failed');
+        }
+      });
+    }
+
+    form.addEventListener('submit', async function(e){
+      e.preventDefault();
+      const id = form.elements.id.value;
+      const barcode = form.elements.barcode.value.trim();
+      const description = form.elements.description.value.trim();
+      if (!barcode || !description){
+        window.alert('Barcode and Description are required.');
+        return;
+      }
+      const payload = { barcode, description };
+      const acqRaw = form.elements.acquisition_cost.value.trim();
+      const saleRaw = form.elements.sales_price.value.trim();
+      if (acqRaw || id) payload.acquisition_cost = acqRaw;
+      if (saleRaw || id) payload.sales_price = saleRaw;
+
+      const method = id ? 'PATCH' : 'POST';
+      const url = id ? `/api/v1/hardware/${id}` : '/api/v1/hardware';
+      const res = await safeFetch(url, {
+        method,
+        headers: apiHeaders(true),
+        body: JSON.stringify(payload)
+      });
+      if (res.ok){
+        closeModal();
+        await refreshHardwareRows();
+      } else {
+        let msg = 'Save failed';
+        try {
+          const body = await res.json();
+          if (body && body.detail) msg = `Save failed: ${body.detail}`;
+        } catch (err) {
+          /* ignore json parse errors */
+        }
+        window.alert(msg);
+      }
+    });
+  })();
+  </script>
+</body>
+</html>
+
+

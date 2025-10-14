@@ -1,0 +1,14 @@
+{% if summary %}
+  {% for item in summary %}
+  <tr>
+    <td class="mono">{{ item.barcode }}</td>
+    <td>{{ item.description }}</td>
+    <td class="mono">{{ item.quantity }}</td>
+    <td class="mono">{{ item.last_activity | fmt_dt }}</td>
+  </tr>
+  {% endfor %}
+{% else %}
+  <tr>
+    <td colspan="4" class="empty">No inventory activity yet.</td>
+  </tr>
+{% endif %}

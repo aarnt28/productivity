@@ -1,0 +1,28 @@
+services:
+  tracker:
+    build: .
+    container_name: time-tracker-dev
+    environment:
+      # --- Headless API key (kept as-is; required by /api/*) ---
+      API_TOKEN: ${API_TOKEN:-CaRpoauTdDYdxQwWhWeXUQy}
+
+      # --- Database / runtime (kept as-is) ---
+      DB_URL: sqlite:////data/data.db
+      TZ: America/Chicago
+
+      # --- UI session login ---
+      APP_SECRET: 'FzkMuTuMmGWcenTFHkvEQZB'
+      UI_USERNAME: 'admin'
+      # Escape `$` for docker-compose by doubling each one: $$ -> container sees single $
+      UI_PASSWORD_HASH: '$$2b$$12$$ZYEsVpnd7SRb8.E5ug/RQuPFjnGvEV9W8wvUi70BAYJptEsuB6cte'
+      SESSION_COOKIE_NAME: 'tt_session'
+      SESSION_MAX_AGE: '2592000'  # 30 days in seconds
+
+      # --- Geoapify address autocomplete ---
+      GEOAPIFY_API_KEY: ${GEOAPIFY_API_KEY:-c91e2e13a8304ba8a3fcbbaae651e00e}
+
+    volumes:
+      - ./data:/data
+    ports:
+      - "8089:8089"
+    restart: unless-stopped

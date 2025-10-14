@@ -1,0 +1,1003 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Clients</title>
+
+  <link rel="stylesheet" href="/static/app.css" />
+  <link rel="icon" href="/static/favicon.ico" />
+</head>
+<body class="dashboard">
+  <header class="app-header">
+    <div class="container">
+      <div class="branding">
+        <img
+          src="/static/img/vip-full-hd-transparant-cropped-halfsize.png"
+          srcset="/static/img/vip-full-hd-transparant-cropped-halfsize.png 1x, /static/img/vip-full-hd-transparant-384x150.png 2x"
+          alt="VIP Clouds logo"
+          class="branding__logo"
+        />
+        <div class="branding__meta">
+          <span class="branding__kicker">VIP Clouds</span>
+          <h1 class="logo"><a href="/">Time Tracker</a></h1>
+        </div>
+      </div>
+      <h2 class="page-title">Clients</h2>
+      <div class="actions">
+        <button class="btn" id="customize-columns">Customize Columns</button>
+        <button class="btn" id="manage-attributes">Manage Custom Attributes</button>
+        <button class="btn" id="create-client">New Client</button>
+      </div>
+      <nav class="links">
+        <a href="/" class="pill">Dashboard</a>
+        <a href="/tickets" class="pill">Tickets</a>
+        <a href="/hardware" class="pill">Hardware</a>
+        <a href="/inventory" class="pill">Inventory</a>
+        <a href="/clients" class="pill active" aria-current="page">Clients</a>
+        <a href="/reports" class="pill">Reports</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="table-wrap">
+      <div class="table-scroll">
+        <table class="table" id="clients-table">
+          <thead id="clients-head"></thead>
+          <tbody id="clients-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Edit modal -->
+  <div id="edit-modal" class="modal-root" style="display:none;">
+    <div class="modal-card modal-card--large">
+      <header class="modal-head">
+        <h2 id="edit-title" class="modal-title">Edit Client</h2>
+        <button id="edit-close" class="btn">Close</button>
+      </header>
+
+      <form id="edit-form" class="modal-form">
+        <div id="edit-fields"></div>
+        <div class="form-actions">
+          <button class="btn" type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="attributes-modal" class="modal-root" style="display:none;">
+    <div class="modal-card">
+      <header class="modal-head">
+        <h2 class="modal-title">Manage Custom Attributes</h2>
+        <button id="attributes-close" class="btn">Close</button>
+      </header>
+      <div class="modal-form">
+        <p class="modal-note">Custom attributes appear for every client. Removing one will delete its values for all clients.</p>
+        <div id="attributes-list" class="attribute-list"></div>
+        <form id="attribute-add-form" class="form-inline" style="margin-top:16px;">
+          <input type="text" id="attribute-new-key" placeholder="new attribute key" class="mono" />
+          <button class="btn" type="submit">Add attribute</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="columns-modal" class="modal-root" style="display:none;">
+    <div class="modal-card modal-card--medium">
+      <header class="modal-head">
+        <h2 class="modal-title">Customize Columns</h2>
+        <button id="columns-close" class="btn">Close</button>
+      </header>
+      <form id="columns-form" class="modal-form">
+        <p class="modal-note">Choose which columns should appear in the table. Newly added attributes are included automatically.</p>
+        <div id="columns-options" class="column-option-list"></div>
+        <div class="form-actions">
+          <button class="btn" type="submit">Apply</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+const DEMOGRAPHIC_FIELDS = [
+  { key: 'address_line1', label: 'Address Line 1', placeholder: '123 Main St' },
+  { key: 'address_line2', label: 'Address Line 2', placeholder: 'Suite 200' },
+  { key: 'city', label: 'City' },
+  { key: 'state', label: 'State / Province' },
+  { key: 'postal_code', label: 'Postal Code' },
+  { key: 'support_hours_allowance', label: 'Support Hours Allowance', type: 'number', placeholder: 'e.g. 20' },
+  { key: 'primary_contact_name', label: 'Primary Contact Name' },
+  { key: 'primary_contact_phone', label: 'Primary Contact Phone', type: 'tel', linkPrefix: 'tel:', linkLabel: 'Call' },
+  { key: 'primary_contact_email', label: 'Primary Contact Email', type: 'email', linkPrefix: 'mailto:', linkLabel: 'Email' },
+  { key: 'office_manager_name', label: 'Office Manager Name' },
+  { key: 'office_manager_phone', label: 'Office Manager Phone', type: 'tel', linkPrefix: 'tel:', linkLabel: 'Call' },
+  { key: 'office_manager_email', label: 'Office Manager Email', type: 'email', linkPrefix: 'mailto:', linkLabel: 'Email' }
+];
+const DEMOGRAPHIC_KEYS = new Set(DEMOGRAPHIC_FIELDS.map((f) => f.key));
+const ADDRESS_AUTOCOMPLETE_MIN_CHARS = 3;
+const ADDRESS_AUTOCOMPLETE_DEBOUNCE = 250;
+const ADDRESS_AUTOCOMPLETE_LIMIT = 20;
+let ADDRESS_AUTOCOMPLETE_DISABLED = false;
+let currentAttributeKeys = [];
+const BASE_TABLE_COLUMNS = [
+  { key: '__client_key__', label: 'Client Key', defaultVisible: true },
+  { key: 'name', label: 'Name', defaultVisible: true }
+];
+const DEMOGRAPHIC_TABLE_COLUMNS = DEMOGRAPHIC_FIELDS.map((field) => ({
+  key: field.key,
+  label: field.label,
+  defaultVisible: false
+}));
+const COLUMN_STORAGE_KEY = 'clients_table_columns_v1';
+let availableTableColumns = BASE_TABLE_COLUMNS.slice();
+let visibleColumnKeys = new Set(BASE_TABLE_COLUMNS.filter((col) => col.defaultVisible !== false).map((col) => col.key));
+let latestTablePayload = null;
+
+function getApiToken(){ return window.localStorage.getItem('api_token') || ''; }
+function setApiToken(t){ if (t) window.localStorage.setItem('api_token', t); }
+function apiHeaders(json=true){
+  const h = {};
+  if (json) h['Content-Type'] = 'application/json';
+  const t = getApiToken();
+  if (t) h['X-API-Key'] = t;
+  return h;
+}
+async function safeFetch(url, opts={}, retry=true){
+  const res = await fetch(url, opts);
+  if (res.status === 401 && retry){
+    const t = window.prompt('Enter API token');
+    if (!t) return res;
+    setApiToken(t);
+    const newOpts = Object.assign({}, opts);
+    newOpts.headers = Object.assign({}, opts.headers || {}, {'X-API-Key': t});
+    return safeFetch(url, newOpts, false);
+  }
+  return res;
+}
+
+function formatAttributeLabel(key){
+  return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function loadColumnPreferences(){
+  try {
+    const raw = window.localStorage.getItem(COLUMN_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return parsed;
+  } catch (err) {
+    console.warn('Failed to load column preferences', err);
+    return null;
+  }
+}
+
+function saveColumnPreferences(selectedKeys, availableKeys){
+  try {
+    const payload = {
+      selected: Array.isArray(selectedKeys) ? selectedKeys.slice() : [],
+      known: Array.isArray(availableKeys) ? availableKeys.slice() : []
+    };
+    window.localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(payload));
+  } catch (err) {
+    console.warn('Failed to save column preferences', err);
+  }
+}
+
+function applyColumnPreferences(availableOptions){
+  const availableKeys = availableOptions.map((col) => col.key);
+  const defaultVisibleKeys = availableOptions
+    .filter((col) => col.defaultVisible !== false)
+    .map((col) => col.key);
+  let selectedKeys = defaultVisibleKeys.slice();
+  const prefs = loadColumnPreferences();
+  if (prefs){
+    const storedSelected = Array.isArray(prefs.selected) ? prefs.selected.filter((key) => availableKeys.includes(key)) : [];
+    const knownKeys = Array.isArray(prefs.known) ? prefs.known : [];
+    selectedKeys = storedSelected.length ? storedSelected.slice() : defaultVisibleKeys.slice();
+    const newKeys = availableKeys.filter((key) => !knownKeys.includes(key));
+    newKeys.forEach((key) => {
+      const def = availableOptions.find((col) => col.key === key);
+      if (def && def.defaultVisible !== false && !selectedKeys.includes(key)){
+        selectedKeys.push(key);
+      }
+    });
+    if (!selectedKeys.length){
+      selectedKeys = defaultVisibleKeys.slice();
+    }
+  }
+  visibleColumnKeys = new Set(selectedKeys);
+  saveColumnPreferences(Array.from(visibleColumnKeys), availableKeys);
+  return availableOptions.filter((col) => visibleColumnKeys.has(col.key));
+}
+
+function formatCellValue(value){
+  if (value === undefined || value === null) return '';
+  if (Array.isArray(value)) return value.join(', ');
+  if (typeof value === 'object'){
+    try {
+      return JSON.stringify(value);
+    } catch (err) {
+      return String(value);
+    }
+  }
+  return String(value);
+}
+
+function normalizeTel(value){
+  return value.replace(/[^0-9+#*]/g, '');
+}
+
+function attachQuickLink(def, input){
+  if (!def.linkPrefix) return null;
+  const link = document.createElement('a');
+  link.textContent = def.linkLabel || (def.linkPrefix === 'tel:' ? 'Call' : 'Email');
+  link.style.marginLeft = '8px';
+  link.className = 'mono';
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  const update = () => {
+    const raw = input.value.trim();
+    if (!raw){
+      link.style.display = 'none';
+      return;
+    }
+    if (def.linkPrefix === 'tel:'){
+      const phone = normalizeTel(raw);
+      if (!phone){
+        link.style.display = 'none';
+        return;
+      }
+      link.href = `${def.linkPrefix}${phone}`;
+    } else {
+      link.href = `${def.linkPrefix}${raw}`;
+    }
+    link.style.display = '';
+    link.title = `${link.textContent} ${raw}`;
+  };
+  update();
+  input.addEventListener('input', update);
+  link.addEventListener('click', (ev) => ev.stopPropagation());
+  return link;
+}
+
+function formatAddressMeta(item){
+  if (!item) return '';
+  const cityState = [item.city, item.state].filter(Boolean).join(', ');
+  const parts = [];
+  if (cityState) parts.push(cityState);
+  if (item.postal_code) parts.push(item.postal_code);
+  if (item.country) parts.push(item.country);
+  if (!parts.length && item.formatted) parts.push(item.formatted);
+  if (!parts.length) parts.push('Geoapify');
+  return parts.join(' · ');
+}
+
+function setupAddressAutocomplete({ modal, container }){
+  if (ADDRESS_AUTOCOMPLETE_DISABLED) return null;
+  const line1Input = container.querySelector('input[data-attr-key="address_line1"]');
+  if (!line1Input) return null;
+
+  const line2Input = container.querySelector('input[data-attr-key="address_line2"]');
+  const cityInput = container.querySelector('input[data-attr-key="city"]');
+  const stateInput = container.querySelector('input[data-attr-key="state"]');
+  const postalInput = container.querySelector('input[data-attr-key="postal_code"]');
+  const host = line1Input.closest('label') || line1Input.parentElement;
+  if (!host) return null;
+
+  host.classList.add('address-autocomplete');
+  const suggestionBox = document.createElement('div');
+  suggestionBox.className = 'address-suggestions';
+  const listId = `address-suggestions-${Math.random().toString(36).slice(2)}`;
+  suggestionBox.id = listId;
+  suggestionBox.setAttribute('role', 'listbox');
+  suggestionBox.style.display = 'none';
+  host.appendChild(suggestionBox);
+
+  line1Input.setAttribute('autocomplete', 'off');
+  line1Input.setAttribute('role', 'combobox');
+  line1Input.setAttribute('aria-autocomplete', 'list');
+  line1Input.setAttribute('aria-haspopup', 'listbox');
+  line1Input.setAttribute('aria-expanded', 'false');
+  line1Input.setAttribute('aria-controls', listId);
+
+  let suggestions = [];
+  let highlightedIndex = -1;
+  let debounceTimer = null;
+  let activeController = null;
+  let destroyed = false;
+  let localDisabled = false;
+  let lastQuery = '';
+
+  function cleanup(){
+    if (destroyed) return;
+    destroyed = true;
+    if (debounceTimer) clearTimeout(debounceTimer);
+    if (activeController) activeController.abort();
+    line1Input.removeEventListener('input', onInput);
+    line1Input.removeEventListener('focus', onFocus);
+    line1Input.removeEventListener('keydown', onKeyDown);
+    line1Input.removeEventListener('blur', onBlur);
+    modal.removeEventListener('mousedown', onOutsidePointer);
+    suggestionBox.remove();
+    host.classList.remove('address-autocomplete');
+    line1Input.removeAttribute('aria-controls');
+    line1Input.removeAttribute('aria-expanded');
+    line1Input.removeAttribute('aria-autocomplete');
+    line1Input.removeAttribute('aria-haspopup');
+    line1Input.removeAttribute('role');
+  }
+
+  function hideSuggestions(){
+    suggestionBox.style.display = 'none';
+    suggestionBox.querySelectorAll('.address-suggestion').forEach((btn) => btn.classList.remove('is-active'));
+    highlightedIndex = -1;
+    line1Input.setAttribute('aria-expanded', 'false');
+  }
+
+  function highlightSuggestion(index){
+    const options = suggestionBox.querySelectorAll('.address-suggestion');
+    options.forEach((option, idx) => option.classList.toggle('is-active', idx === index));
+    highlightedIndex = index;
+  }
+
+  function renderSuggestions(){
+    suggestionBox.innerHTML = '';
+    if (!suggestions.length){
+      hideSuggestions();
+      return;
+    }
+    suggestions.forEach((item, index) => {
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.className = 'address-suggestion';
+      option.setAttribute('role', 'option');
+      option.dataset.index = String(index);
+      const primary = document.createElement('div');
+      primary.className = 'address-suggestion__primary';
+      const streetParts = [];
+      if (item.street_line) streetParts.push(item.street_line);
+      if (item.secondary) streetParts.push(item.secondary);
+      primary.textContent = streetParts.join(' ').trim() || item.street_line || '';
+      option.appendChild(primary);
+      const meta = document.createElement('div');
+      meta.className = 'address-suggestion__meta';
+      meta.textContent = formatAddressMeta(item);
+      option.appendChild(meta);
+      option.addEventListener('mouseenter', () => highlightSuggestion(index));
+      option.addEventListener('mousedown', (ev) => ev.preventDefault());
+      option.addEventListener('click', () => applySuggestion(item));
+      suggestionBox.appendChild(option);
+    });
+    suggestionBox.style.display = 'block';
+    line1Input.setAttribute('aria-expanded', 'true');
+  }
+
+  function applySuggestion(item){
+    if (!item) return;
+    if (item.street_line) line1Input.value = item.street_line;
+    if (line2Input && item.secondary !== undefined && item.secondary !== null){
+      line2Input.value = item.secondary || '';
+    }
+    if (cityInput && item.city) cityInput.value = item.city;
+    if (stateInput && item.state) stateInput.value = item.state;
+    if (postalInput && item.postal_code) postalInput.value = item.postal_code;
+    hideSuggestions();
+    line1Input.dispatchEvent(new Event('change', { bubbles: true }));
+    verifySelection(item);
+  }
+
+  async function verifySelection(item){
+    if (ADDRESS_AUTOCOMPLETE_DISABLED || localDisabled) return;
+    const params = new URLSearchParams();
+    const street = (item && item.street_line) || line1Input.value.trim();
+    if (!street) return;
+    params.set('street', street);
+    const secondary = item.secondary || (line2Input ? line2Input.value.trim() : '');
+    if (secondary) params.set('secondary', secondary);
+    const cityValue = item.city || (cityInput ? cityInput.value.trim() : '');
+    if (cityValue) params.set('city', cityValue);
+    const stateValue = item.state || (stateInput ? stateInput.value.trim() : '');
+    if (stateValue) params.set('state', stateValue);
+    const zipValue = item.postal_code || (postalInput ? postalInput.value.trim() : '');
+    if (zipValue) params.set('zip', zipValue);
+    if (item.place_id) params.set('place_id', item.place_id);
+    try {
+      const res = await fetch(`/api/v1/address/verify?${params.toString()}`, {
+        headers: apiHeaders(false),
+      });
+      if (res.status === 503){
+        ADDRESS_AUTOCOMPLETE_DISABLED = true;
+        localDisabled = true;
+        cleanup();
+        return;
+      }
+      if (!res.ok) return;
+      const data = await res.json();
+      const candidate = data.candidate || {};
+      if (candidate.delivery_line_1) line1Input.value = candidate.delivery_line_1;
+      if (line2Input && candidate.delivery_line_2) line2Input.value = candidate.delivery_line_2;
+      if (cityInput && candidate.city) cityInput.value = candidate.city;
+      if (stateInput && candidate.state) stateInput.value = candidate.state;
+      if (postalInput && candidate.postal_code) postalInput.value = candidate.postal_code;
+    } catch (err) {
+      console.warn('Address verification failed', err);
+    }
+  }
+
+  function onOutsidePointer(ev){
+    if (!host.contains(ev.target)) hideSuggestions();
+  }
+
+  function onInput(){
+    scheduleFetch();
+  }
+
+  function onFocus(){
+    if (suggestions.length){
+      renderSuggestions();
+    } else if (line1Input.value.trim().length >= ADDRESS_AUTOCOMPLETE_MIN_CHARS){
+      scheduleFetch();
+    }
+  }
+
+  function onBlur(){
+    window.setTimeout(() => {
+      if (!host.contains(document.activeElement)) hideSuggestions();
+    }, 150);
+  }
+
+  function onKeyDown(ev){
+    if (!suggestions.length || suggestionBox.style.display === 'none') return;
+    if (ev.key === 'ArrowDown'){
+      ev.preventDefault();
+      const nextIndex = (highlightedIndex + 1) % suggestions.length;
+      highlightSuggestion(nextIndex);
+    } else if (ev.key === 'ArrowUp'){
+      ev.preventDefault();
+      const nextIndex = highlightedIndex <= 0 ? suggestions.length - 1 : highlightedIndex - 1;
+      highlightSuggestion(nextIndex);
+    } else if (ev.key === 'Enter'){
+      if (highlightedIndex >= 0 && highlightedIndex < suggestions.length){
+        ev.preventDefault();
+        applySuggestion(suggestions[highlightedIndex]);
+      }
+    } else if (ev.key === 'Escape'){
+      hideSuggestions();
+    }
+  }
+
+  function scheduleFetch(){
+    if (ADDRESS_AUTOCOMPLETE_DISABLED || localDisabled) return;
+    if (debounceTimer) window.clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(requestSuggestions, ADDRESS_AUTOCOMPLETE_DEBOUNCE);
+  }
+
+  async function requestSuggestions(){
+    if (ADDRESS_AUTOCOMPLETE_DISABLED || localDisabled) return;
+    const query = line1Input.value.trim();
+    if (!query || query.length < ADDRESS_AUTOCOMPLETE_MIN_CHARS){
+      suggestions = [];
+      hideSuggestions();
+      return;
+    }
+    if (query === lastQuery && suggestions.length){
+      renderSuggestions();
+      return;
+    }
+    lastQuery = query;
+    if (activeController) activeController.abort();
+    activeController = new AbortController();
+    const params = new URLSearchParams({ query, limit: String(ADDRESS_AUTOCOMPLETE_LIMIT) });
+    const cityValue = cityInput ? cityInput.value.trim() : '';
+    const stateValue = stateInput ? stateInput.value.trim() : '';
+    const zipValue = postalInput ? postalInput.value.trim() : '';
+    if (cityValue) params.set('city', cityValue);
+    if (stateValue) params.set('state', stateValue);
+    if (zipValue) params.set('zip', zipValue);
+    try {
+      const res = await fetch(`/api/v1/address/suggest?${params.toString()}`, {
+        headers: apiHeaders(false),
+        signal: activeController.signal,
+      });
+      if (res.status === 503){
+        ADDRESS_AUTOCOMPLETE_DISABLED = true;
+        localDisabled = true;
+        cleanup();
+        return;
+      }
+      if (!res.ok) throw new Error('Failed to fetch address suggestions');
+      const data = await res.json();
+      suggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
+      if (!suggestions.length){
+        hideSuggestions();
+      } else {
+        renderSuggestions();
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      console.warn('Address autocomplete failed', err);
+      hideSuggestions();
+    } finally {
+      activeController = null;
+    }
+  }
+
+  line1Input.addEventListener('input', onInput);
+  line1Input.addEventListener('focus', onFocus);
+  line1Input.addEventListener('keydown', onKeyDown);
+  line1Input.addEventListener('blur', onBlur);
+  modal.addEventListener('mousedown', onOutsidePointer);
+
+  return cleanup;
+}
+
+function renderTable(data){
+  latestTablePayload = data;
+  const tableData = data.clients || {};
+  const head = document.getElementById('clients-head');
+  const body = document.getElementById('clients-body');
+  head.innerHTML = '';
+  body.innerHTML = '';
+
+  const declaredAttributes = Array.isArray(data.attribute_keys) ? data.attribute_keys : [];
+  const attributeKeys = new Set(declaredAttributes);
+  Object.values(tableData).forEach((entry) => {
+    Object.keys(entry || {}).forEach((k) => {
+      if (k !== 'name' && !DEMOGRAPHIC_KEYS.has(k)) attributeKeys.add(k);
+    });
+  });
+  const sortedAttributes = Array.from(attributeKeys).sort();
+  currentAttributeKeys = sortedAttributes.slice();
+
+  const attributeColumns = sortedAttributes.map((key) => ({
+    key,
+    label: formatAttributeLabel(key),
+    defaultVisible: true
+  }));
+  const seenKeys = new Set();
+  const combinedColumns = [];
+  const registerColumn = (col) => {
+    if (!col || !col.key || seenKeys.has(col.key)) return;
+    seenKeys.add(col.key);
+    combinedColumns.push({
+      key: col.key,
+      label: col.label,
+      defaultVisible: col.defaultVisible !== false
+    });
+  };
+
+  BASE_TABLE_COLUMNS.forEach(registerColumn);
+  DEMOGRAPHIC_TABLE_COLUMNS.forEach(registerColumn);
+  attributeColumns.forEach(registerColumn);
+  availableTableColumns = combinedColumns;
+  const columnsToRender = applyColumnPreferences(availableTableColumns);
+
+  const trh = document.createElement('tr');
+  columnsToRender.forEach((col) => {
+    const th = document.createElement('th');
+    th.textContent = col.label;
+    trh.appendChild(th);
+  });
+  const actionsTh = document.createElement('th');
+  actionsTh.textContent = 'Actions';
+  trh.appendChild(actionsTh);
+  head.appendChild(trh);
+
+  Object.keys(tableData).sort((a, b) => a.localeCompare(b)).forEach((clientKey) => {
+    const entry = tableData[clientKey] || {};
+    const tr = document.createElement('tr');
+    tr.classList.add('row');
+
+    columnsToRender.forEach((col) => {
+      const td = document.createElement('td');
+      td.dataset.label = col.label;
+      if (col.key === '__client_key__'){
+        td.textContent = clientKey;
+        td.classList.add('mono');
+      } else if (col.key === 'name'){
+        td.textContent = entry.name || '';
+        td.style.fontWeight = '600';
+      } else {
+        td.textContent = formatCellValue(entry[col.key]);
+      }
+      tr.appendChild(td);
+    });
+
+    const tdAct = document.createElement('td');
+    tdAct.dataset.label = 'Actions';
+    tdAct.className = 'actions-cell';
+    const delBtn = document.createElement('button');
+    delBtn.className = 'icon-btn';
+    delBtn.type = 'button';
+    delBtn.title = `Delete ${entry.name || clientKey}`;
+    delBtn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M9 3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1h5v1h-2v16a2 2 0 0 1-2.1 2H8.1A2 2 0 0 1 6 20V4H4V3h5zm1 0h4v1h-4V3zM8 9h2v10H8V9zm4 0h2v10h-2V9zm4 0h2v10h-2V9z"/></svg>`;
+    delBtn.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      if (!confirm(`Delete client "${clientKey}"? This cannot be undone.`)) return;
+      const r = await safeFetch(`/api/v1/clients/${encodeURIComponent(clientKey)}/delete`, { method: 'POST', headers: apiHeaders(false) });
+      if (r.ok) loadTable(); else alert('Delete failed');
+    });
+    tdAct.appendChild(delBtn);
+    tr.appendChild(tdAct);
+
+    tr.addEventListener('click', () => openEditor(clientKey, entry, sortedAttributes));
+    body.appendChild(tr);
+  });
+
+  renderColumnsOptions();
+}
+
+function loadTable(){
+  fetch('/api/v1/clients')
+    .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+    .then(renderTable)
+    .catch(() => alert('Failed to load clients'));
+}
+
+function openEditor(clientKey, entry, attributeKeys){
+  const modal = document.getElementById('edit-modal');
+  const fields = document.getElementById('edit-fields');
+  const nameValue = entry.name || '';
+  const cleanupCallbacks = [];
+  const registerCleanup = (fn) => { if (typeof fn === 'function') cleanupCallbacks.push(fn); };
+  const runCleanup = () => {
+    while (cleanupCallbacks.length){
+      const fn = cleanupCallbacks.pop();
+      try { fn(); } catch (err) { console.warn('Cleanup failed', err); }
+    }
+  };
+  const closeModal = () => {
+    runCleanup();
+    modal.style.display = 'none';
+  };
+  document.getElementById('edit-title').textContent = `Edit Client: ${clientKey}`;
+  fields.innerHTML = '';
+
+  const nameWrap = document.createElement('label');
+  nameWrap.style.display = 'block';
+  nameWrap.style.marginBottom = '10px';
+  nameWrap.textContent = 'Display Name ';
+  const nameInput = document.createElement('input');
+  nameInput.id = 'edit-name';
+  nameInput.value = nameValue;
+  nameInput.required = true;
+  nameInput.className = 'mono';
+  nameWrap.appendChild(nameInput);
+  fields.appendChild(nameWrap);
+
+  const demoHeading = document.createElement('h3');
+  demoHeading.textContent = 'Demographics';
+  demoHeading.style.margin = '12px 0 4px';
+  demoHeading.style.fontSize = '1rem';
+  demoHeading.style.fontWeight = '600';
+  fields.appendChild(demoHeading);
+
+  const demographicsContainer = document.createElement('div');
+  demographicsContainer.id = 'demographics-container';
+  demographicsContainer.style.display = 'flex';
+  demographicsContainer.style.flexDirection = 'column';
+  demographicsContainer.style.gap = '8px';
+  fields.appendChild(demographicsContainer);
+
+  function addDemographicRow(def){
+    const wrap = document.createElement('label');
+    wrap.style.display = 'block';
+    wrap.style.marginBottom = '6px';
+    wrap.textContent = `${def.label} `;
+    const input = document.createElement('input');
+    input.className = 'mono';
+    input.type = def.type || 'text';
+    if (def.placeholder) input.placeholder = def.placeholder;
+    input.value = entry[def.key] != null ? String(entry[def.key]) : '';
+    input.dataset.attrKey = def.key;
+    input.dataset.demographic = 'true';
+    wrap.appendChild(input);
+    const quickLink = attachQuickLink(def, input);
+    if (quickLink) wrap.appendChild(quickLink);
+    demographicsContainer.appendChild(wrap);
+  }
+
+  DEMOGRAPHIC_FIELDS.forEach(addDemographicRow);
+
+  const autocompleteCleanup = setupAddressAutocomplete({ modal, container: demographicsContainer });
+  if (autocompleteCleanup) registerCleanup(autocompleteCleanup);
+
+  const attrHeading = document.createElement('h3');
+  attrHeading.textContent = 'Custom Attributes';
+  attrHeading.style.margin = '16px 0 4px';
+  attrHeading.style.fontSize = '1rem';
+  attrHeading.style.fontWeight = '600';
+  fields.appendChild(attrHeading);
+
+  const attrContainer = document.createElement('div');
+  attrContainer.id = 'attribute-container';
+  attrContainer.style.display = 'flex';
+  attrContainer.style.flexDirection = 'column';
+  attrContainer.style.gap = '8px';
+  fields.appendChild(attrContainer);
+
+  const seenAttrKeys = new Set();
+
+  function addAttrRow(key, value){
+    if (!key || key === 'name') return;
+    const normalizedKey = key;
+    if (DEMOGRAPHIC_KEYS.has(normalizedKey)){
+      const target = demographicsContainer.querySelector(`input[data-attr-key="${normalizedKey}"]`);
+      if (target){
+        target.value = value == null ? '' : String(value);
+        target.dispatchEvent(new Event('input'));
+      }
+      return;
+    }
+    if (seenAttrKeys.has(normalizedKey)){
+      const existing = attrContainer.querySelector(`input[data-attr-key="${normalizedKey}"]`);
+      if (existing){
+        existing.value = value == null ? '' : String(value);
+      }
+      return;
+    }
+    seenAttrKeys.add(normalizedKey);
+    const wrap = document.createElement('label');
+    wrap.style.display = 'block';
+    wrap.style.marginBottom = '6px';
+    wrap.textContent = normalizedKey.replace(/_/g, ' ') + ' ';
+    const input = document.createElement('input');
+    input.value = value == null ? '' : String(value);
+    input.dataset.attrKey = normalizedKey;
+    input.className = 'mono';
+    wrap.appendChild(input);
+    attrContainer.appendChild(wrap);
+  }
+
+  if (Array.isArray(attributeKeys) && attributeKeys.length){
+    attributeKeys.forEach((key) => addAttrRow(key, entry[key]));
+  }
+  Object.keys(entry || {}).forEach((key) => {
+    if (key === 'name') return;
+    addAttrRow(key, entry[key]);
+  });
+
+  document.getElementById('edit-close').onclick = closeModal;
+  modal.style.display = 'block';
+
+  document.getElementById('edit-form').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const name = nameInput.value.trim();
+    if (!name){
+      alert('Display name is required');
+      return;
+    }
+    const payload = { name, attributes: {} };
+    demographicsContainer.querySelectorAll('input[data-attr-key]').forEach((inp) => {
+      const key = inp.dataset.attrKey;
+      if (!key) return;
+      payload.attributes[key] = inp.value.trim();
+    });
+    attrContainer.querySelectorAll('input[data-attr-key]').forEach((inp) => {
+      const key = inp.dataset.attrKey;
+      if (!key) return;
+      payload.attributes[key] = inp.value.trim();
+    });
+    const r = await safeFetch(`/api/v1/clients/${encodeURIComponent(clientKey)}`, {
+      method: 'PATCH',
+      headers: apiHeaders(true),
+      body: JSON.stringify(payload)
+    });
+    if (r.ok){
+      closeModal();
+      loadTable();
+    } else {
+      alert('Save failed');
+    }
+  };
+
+}
+
+const attributesModal = document.getElementById('attributes-modal');
+const attributesList = document.getElementById('attributes-list');
+const manageAttributesBtn = document.getElementById('manage-attributes');
+const attributesCloseBtn = document.getElementById('attributes-close');
+const attributeAddForm = document.getElementById('attribute-add-form');
+const attributeNewKeyInput = document.getElementById('attribute-new-key');
+const columnsModal = document.getElementById('columns-modal');
+const columnsCloseBtn = document.getElementById('columns-close');
+const customizeColumnsBtn = document.getElementById('customize-columns');
+const columnsForm = document.getElementById('columns-form');
+const columnsOptions = document.getElementById('columns-options');
+
+function closeAttributesModal(){
+  if (attributesModal) attributesModal.style.display = 'none';
+}
+
+function closeColumnsModal(){
+  if (columnsModal) columnsModal.style.display = 'none';
+}
+
+function renderColumnsOptions(){
+  if (!columnsOptions) return;
+  columnsOptions.innerHTML = '';
+  if (!availableTableColumns.length){
+    const empty = document.createElement('p');
+    empty.textContent = 'No columns available yet.';
+    empty.style.margin = '8px 0';
+    columnsOptions.appendChild(empty);
+    return;
+  }
+  availableTableColumns.forEach((col) => {
+    const checkboxId = `column-option-${col.key.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+    const label = document.createElement('label');
+    label.className = 'column-option';
+    label.htmlFor = checkboxId;
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = checkboxId;
+    checkbox.value = col.key;
+    checkbox.checked = visibleColumnKeys.has(col.key);
+    const span = document.createElement('span');
+    span.textContent = col.label;
+    label.appendChild(checkbox);
+    label.appendChild(span);
+    columnsOptions.appendChild(label);
+  });
+}
+
+function renderAttributesManager(){
+  if (!attributesList) return;
+  attributesList.innerHTML = '';
+  if (!currentAttributeKeys.length){
+    const empty = document.createElement('p');
+    empty.textContent = 'No custom attributes yet.';
+    empty.style.margin = '8px 0';
+    attributesList.appendChild(empty);
+    return;
+  }
+  currentAttributeKeys.forEach((key) => {
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.justifyContent = 'space-between';
+    row.style.gap = '8px';
+    row.style.marginBottom = '6px';
+
+    const label = document.createElement('span');
+    label.textContent = key;
+    label.className = 'mono';
+    label.style.flex = '1';
+    row.appendChild(label);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn';
+    removeBtn.textContent = 'Remove';
+    removeBtn.addEventListener('click', async () => {
+      if (!confirm(`Remove attribute "${key}"? This will delete the value for all clients.`)) return;
+      try {
+        const res = await safeFetch(`/api/v1/clients/attributes/${encodeURIComponent(key)}`, {
+          method: 'DELETE',
+          headers: apiHeaders(false)
+        });
+        if (!res.ok){
+          throw new Error('Failed to remove attribute');
+        }
+        const data = await res.json();
+        currentAttributeKeys = Array.isArray(data.attribute_keys) ? data.attribute_keys.slice().sort((a, b) => a.localeCompare(b)) : currentAttributeKeys.filter((k) => k !== key);
+        renderAttributesManager();
+        loadTable();
+      } catch (err) {
+        console.error(err);
+        alert('Failed to remove attribute');
+      }
+    });
+    row.appendChild(removeBtn);
+    attributesList.appendChild(row);
+  });
+}
+
+async function refreshAttributeKeysFromServer(){
+  const res = await safeFetch('/api/v1/clients/attributes');
+  if (!res.ok){
+    throw new Error('Failed to load custom attributes');
+  }
+  const data = await res.json();
+  currentAttributeKeys = Array.isArray(data.attribute_keys) ? data.attribute_keys.slice().sort((a, b) => a.localeCompare(b)) : [];
+  return currentAttributeKeys;
+}
+
+if (attributesCloseBtn){
+  attributesCloseBtn.addEventListener('click', closeAttributesModal);
+}
+
+if (columnsCloseBtn){
+  columnsCloseBtn.addEventListener('click', closeColumnsModal);
+}
+
+if (customizeColumnsBtn){
+  customizeColumnsBtn.addEventListener('click', () => {
+    renderColumnsOptions();
+    if (columnsModal) columnsModal.style.display = 'block';
+  });
+}
+
+if (columnsForm){
+  columnsForm.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    if (!columnsOptions) return;
+    const selected = Array.from(columnsOptions.querySelectorAll('input[type="checkbox"]'))
+      .filter((input) => input.checked)
+      .map((input) => input.value);
+    if (!selected.length){
+      alert('Select at least one column to display');
+      return;
+    }
+    visibleColumnKeys = new Set(selected);
+    saveColumnPreferences(selected, availableTableColumns.map((col) => col.key));
+    closeColumnsModal();
+    if (latestTablePayload) renderTable(latestTablePayload);
+  });
+}
+
+if (manageAttributesBtn){
+  manageAttributesBtn.addEventListener('click', async () => {
+    try {
+      await refreshAttributeKeysFromServer();
+      renderAttributesManager();
+      if (attributesModal) attributesModal.style.display = 'block';
+    } catch (err) {
+      console.error(err);
+      alert('Failed to load custom attributes');
+    }
+  });
+}
+
+if (attributeAddForm){
+  attributeAddForm.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const key = attributeNewKeyInput ? (attributeNewKeyInput.value || '').trim() : '';
+    if (!key) return;
+    try {
+      const res = await safeFetch('/api/v1/clients/attributes', {
+        method: 'POST',
+        headers: apiHeaders(true),
+        body: JSON.stringify({ key })
+      });
+      if (res.ok){
+        const data = await res.json();
+        currentAttributeKeys = Array.isArray(data.attribute_keys) ? data.attribute_keys.slice().sort((a, b) => a.localeCompare(b)) : currentAttributeKeys;
+        if (attributeNewKeyInput) attributeNewKeyInput.value = '';
+        renderAttributesManager();
+        loadTable();
+      } else if (res.status === 409){
+        alert('Attribute already exists');
+      } else if (res.status === 422){
+        const data = await res.json().catch(() => ({}));
+        alert(data.detail || 'Attribute key is invalid');
+      } else {
+        throw new Error('Failed to add attribute');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to add attribute');
+    }
+  });
+}
+
+document.getElementById('create-client').addEventListener('click', async () => {
+  const clientKey = prompt('New client key (e.g., nds):');
+  if (!clientKey) return;
+  const name = prompt('Display name for this client:');
+  if (!name) return;
+  const r = await safeFetch('/api/v1/clients', {
+    method: 'POST',
+    headers: apiHeaders(true),
+    body: JSON.stringify({ client_key: clientKey.trim(), name: name.trim(), attributes: {} })
+  });
+  if (r.ok) loadTable(); else alert('Create failed');
+});
+
+loadTable();
+</script>
+

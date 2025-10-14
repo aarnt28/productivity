@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{% block title %}Time Tracker{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css" />
+  <link rel="icon" href="/static/favicon.ico" />
+</head>
+<body class="dashboard">
+  <header class="app-header">
+    <div class="container">
+      <div class="branding">
+        <img
+          src="/static/img/vip-full-hd-transparant-cropped-halfsize.png"
+          srcset="/static/img/vip-full-hd-transparant-cropped-halfsize.png 1x, /static/img/vip-full-hd-transparant-384x150.png 2x"
+          alt="VIP Clouds logo"
+          class="branding__logo"
+        />
+        <div class="branding__meta">
+          <span class="branding__kicker">VIP Clouds</span>
+          <h1 class="logo"><a href="/">Time Tracker</a></h1>
+        </div>
+      </div>
+    </div>
+  </header>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mission Control</title>
+  <link rel="icon" href="/static/favicon.ico" />
+  <link rel="stylesheet" href="/static/app.css" />
+  <style>
+    :root {
+      --glass-bg: rgba(0, 145, 234, 0.28);
+      --glass-border: rgba(64, 196, 255, 0.28);
+      --glow: rgba(64, 196, 255, 0.45);
+      --accent: var(--vip-primary-blue);
+      --accent-strong: var(--vip-primary-green);
+      --txt-primary: var(--vip-neutral-white);
+      --txt-muted: rgba(255, 255, 255, 0.75);
+      --card-shadow: 0 24px 44px rgba(0, 145, 234, 0.35);
+    }
+
+    body.landing {
+      min-height: 100vh;
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      color: var(--txt-primary);
+      background:
+        radial-gradient(120% 120% at 20% 20%, rgba(64, 196, 255, 0.26), transparent 55%),
+        radial-gradient(100% 130% at 82% -10%, rgba(38, 166, 154, 0.4), transparent 62%),
+        radial-gradient(110% 150% at 50% 80%, rgba(76, 175, 80, 0.28), #051a38 72%);
+      background-attachment: fixed;
+    }
+
+    .orbital-grid {
+      position: fixed;
+      inset: 0;
+      background-image: linear-gradient(rgba(64, 196, 255, 0.08) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(64, 196, 255, 0.06) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+    }
+
+    .landing-wrapper {
+      position: relative;
+      padding: 64px min(8vw, 96px) 96px;
+      display: flex;
+      flex-direction: column;
+      gap: 48px;
+    }
+
+    .landing-hero{
+      display:flex;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:space-between;
+      gap:32px;
+    }
+    .landing-hero__branding{
+      display:flex;
+      flex-direction:column;
+      align-items:flex-start;
+      gap:12px;
+    }
+    .landing-hero__branding img{
+      width:min(320px, 40vw);
+      height:auto;
+      filter:drop-shadow(0 12px 32px rgba(0, 0, 0, 0.35));
+    }
+    .landing-hero__badge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 16px;
+      border-radius:999px;
+      background:rgba(255,255,255,0.12);
+      border:1px solid rgba(64,196,255,0.35);
+      text-transform:uppercase;
+      letter-spacing:.25em;
+      font-size:0.75rem;
+      color:var(--txt-muted);
+    }
+
+    header.hero {
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      max-width:640px;
+    }
+
+    header.hero h1 {
+      font-size: clamp(2.75rem, 4vw, 3.6rem);
+      margin: 0;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--txt-primary);
+      text-shadow: 0 0 38px rgba(64, 196, 255, 0.45);
+    }
+
+    header.hero .subline {
+      font-size: 1.05rem;
+      color: var(--txt-muted);
+      max-width: 680px;
+      line-height: 1.6;
+    }
+
+    .status-bar {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    .status-card {
+      backdrop-filter: blur(18px);
+      border-radius: 18px;
+      padding: 22px 24px;
+      border: 1px solid var(--glass-border);
+      background: var(--glass-bg);
+      box-shadow: var(--card-shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .status-card::after {
+      content: "";
+      position: absolute;
+      inset: -40% 45% auto -30%;
+      height: 160%;
+      width: 65%;
+      background: radial-gradient(circle at center, var(--glow), transparent 70%);
+      opacity: 0.5;
+      pointer-events: none;
+      transform: rotate(15deg);
+    }
+
+    .status-card span.label {
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.3em;
+      color: var(--txt-muted);
+    }
+
+    .status-card h2 {
+      font-size: clamp(2.4rem, 3vw, 3rem);
+      margin: 10px 0 4px;
+      color: var(--txt-primary);
+    }
+
+    .status-card .meta {
+      font-size: 0.95rem;
+      color: var(--txt-muted);
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+
+    .status-card .progress {
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.18);
+      margin-top: 18px;
+      overflow: hidden;
+    }
+
+    .status-card .progress span {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+      width: 0;
+      transition: width 0.6s ease;
+    }
+
+    .status-card[data-progress] .progress span {
+      width: attr(data-progress);
+    }
+
+    .status-card[data-progress]::after {
+      opacity: 0.7;
+    }
+
+    .status-card .progress span[data-width] {
+      width: var(--width, 0%);
+    }
+
+    .systems-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+      gap: 28px;
+    }
+
+    @media (max-width: 1100px) {
+      .systems-grid { grid-template-columns: 1fr; }
+    }
+
+    .panel-glass {
+      backdrop-filter: blur(16px);
+      border-radius: 22px;
+      border: 1px solid var(--glass-border);
+      background: rgba(5, 26, 56, 0.82);
+      box-shadow: var(--card-shadow);
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .panel-head h3 {
+      margin: 0;
+      font-size: 1.2rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--txt-primary);
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(64, 196, 255, 0.2);
+      color: var(--txt-primary);
+      border:1px solid rgba(64,196,255,0.32);
+      text-decoration:none;
+      transition:background 0.2s ease, border-color 0.2s ease;
+    }
+    .chip:hover{
+      background:rgba(64,196,255,0.28);
+      border-color:rgba(64,196,255,0.45);
+    }
+
+    .quick-actions {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+
+    .quick-actions a {
+      text-decoration: none;
+      padding: 12px 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(64, 196, 255, 0.42);
+      color: var(--txt-primary);
+      background: rgba(9, 45, 91, 0.6);
+      backdrop-filter: blur(12px);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .quick-actions a:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(0, 145, 234, 0.28);
+      background: rgba(15, 65, 120, 0.7);
+    }
+
+    .activity-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .activity-card {
+      border-radius: 16px;
+      padding: 16px 18px;
+      border: 1px solid rgba(64, 196, 255, 0.22);
+      background: rgba(5, 26, 56, 0.7);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: baseline;
+    }
+
+    .activity-card strong { color: var(--txt-primary); }
+    .activity-card span.meta { color: var(--txt-muted); font-size: 0.85rem; }
+    .activity-card span.badge {
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: rgba(76, 175, 80, 0.22);
+      color: var(--txt-primary);
+      border:1px solid rgba(76,175,80,0.4);
+      box-shadow:0 6px 16px rgba(76,175,80,0.22);
+    }
+
+    .spotlight-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .spotlight-item {
+      --time-column-width: clamp(120px, 14vw, 158px);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) var(--time-column-width);
+      gap: 18px;
+      align-items: start;
+      border-bottom: 1px solid rgba(64, 196, 255, 0.18);
+      padding-bottom: 12px;
+    }
+
+    .spotlight-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .spotlight-item .spotlight-body {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .spotlight-item .title {
+      font-size: 1.05rem;
+      color: var(--txt-primary);
+    }
+
+    .spotlight-item .subtitle {
+      display: grid;
+      gap: 4px;
+      color: var(--txt-muted);
+      font-size: 0.85rem;
+    }
+
+    .spotlight-item .subtitle .meta {
+      font-size: 0.85rem;
+      letter-spacing: 0.01em;
+    }
+
+    .spotlight-item .subtitle .note {
+      font-size: 0.9rem;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: clamp(32ch, 44vw, 72ch);
+      line-height: 1.35;
+      max-height: calc(1.35em * 2);
+    }
+
+    .spotlight-item .time {
+      font-size: 0.9rem;
+      color: rgba(255, 255, 255, 0.75);
+      min-width: 0;
+      justify-self: end;
+      width: var(--time-column-width);
+      text-align: right;
+      letter-spacing: 0.02em;
+    }
+    @media (min-width: 1200px) {
+      .spotlight-item { --time-column-width: clamp(132px, 10vw, 168px); }
+      .spotlight-item .subtitle .note { max-width: clamp(40ch, 46vw, 88ch); }
+    }
+
+    @media (min-width: 1600px) {
+      .spotlight-item { --time-column-width: clamp(138px, 8vw, 172px); }
+      .spotlight-item .subtitle .note { max-width: clamp(48ch, 48vw, 96ch); }
+    }
+
+    @media (min-width: 1920px) {
+      .spotlight-item { --time-column-width: clamp(144px, 7vw, 184px); }
+      .spotlight-item .subtitle .note {
+        display: block;
+        -webkit-line-clamp: unset;
+        max-height: none;
+        max-width: 100%;
+        overflow: visible;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .landing-wrapper { padding: 48px 24px 72px; }
+      header.hero { align-items:center; text-align:center; }
+      header.hero .subline { max-width: 520px; }
+      .status-bar { grid-template-columns: 1fr; }
+      .panel-glass { padding: 20px; }
+      .spotlight-item { --time-column-width: clamp(120px, 32vw, 148px); }
+      .spotlight-item .subtitle .note { -webkit-line-clamp: 3; max-height: calc(1.35em * 3); max-width: clamp(32ch, 80vw, 54ch); }
+      .spotlight-item .time { width: var(--time-column-width); }
+    }
+
+    @media (max-width: 600px) {
+      .landing-wrapper { padding: 32px 18px 56px; gap: 36px; }
+      header.hero .subline { font-size: 0.98rem; }
+      .panel-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+      .quick-actions { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+      .spotlight-item { grid-template-columns: 1fr; gap: 12px; }
+      .spotlight-item .time { text-align: left; min-width: auto; width: auto; justify-self: start; font-size: 0.85rem; letter-spacing: 0.01em; }
+      .spotlight-item .subtitle .note { -webkit-line-clamp: 4; max-height: calc(1.35em * 4); max-width: 100%; }
+    }
+
+  </style>
+</head>
+<body class="landing">
+  <div class="orbital-grid" aria-hidden="true"></div>
+  <div class="landing-wrapper">
+    <section class="landing-hero">
+      <div class="landing-hero__branding">
+        <span class="landing-hero__badge">VIP Clouds Platform</span>
+        <img
+          src="/static/img/vip-full-hd-transparant-cropped-halfsize.png"
+          srcset="/static/img/vip-full-hd-transparant-cropped-halfsize.png 1x, /static/img/vip-full-hd-transparant-cropped.png 2x"
+          alt="VIP Clouds mission control logo"
+        />
+      </div>
+      <header class="hero">
+      <h1>Mission Control</h1>
+      <p class="subline">Stay ahead of support work, field installs, and client updates with real-time telemetry across every module.</p>
+    </header>
+    </section>
+
+    <section class="status-bar">
+      <div class="status-card" data-progress>
+        <span class="label">Tickets</span>
+        <h2>{{ stats.tickets_open }}/{{ stats.tickets_total }}</h2>
+        <div class="meta">
+          <span>Open</span>
+          <span>Completion: {{ stats.tickets_completion }}%</span>
+        </div>
+        <div class="progress">
+          <span style="--width: {{ stats.tickets_completion }}%; width: {{ stats.tickets_completion }}%;"></span>
+        </div>
+      </div>
+
+      <div class="status-card">
+        <span class="label">Hardware Inventory</span>
+        <h2>{{ stats.hardware_total }}</h2>
+        <div class="meta">
+          <span>Tracked assets</span>
+          <span><a href="/hardware" class="chip">Jump to inventory</a></span>
+        </div>
+      </div>
+
+      <div class="status-card">
+        <span class="label">Client Roster</span>
+        <h2>{{ stats.clients_total }}</h2>
+        <div class="meta">
+          <span>Active relationships</span>
+          <span><a href="/clients" class="chip">Manage roster</a></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="systems-grid">
+      <div class="panel-glass">
+        <div class="panel-head">
+          <h3>Active Missions</h3>
+          <span class="chip">{{ stats.tickets_open }} in progress</span>
+        </div>
+        <div class="spotlight-list">
+          {% if spotlight %}
+            {% for ticket in spotlight %}
+            <div class="spotlight-item">
+              <div class="spotlight-body">
+                <div class="title">{{ ticket.client }}</div>
+                <div class="subtitle">
+                  <span class="meta">Ticket #{{ ticket.id }} &mdash; {{ ticket.entry_type }}</span>
+                  <span class="note">{{ ticket.note or "No note" }}</span>
+                </div>
+              </div>
+              <div class="time">{{ ticket.start_iso | fmt_dt_compact }}</div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <p class="subtitle">All tickets are complete. Enjoy the calm.</p>
+          {% endif %}
+        </div>
+        <div class="quick-actions">
+          <a href="/tickets">Open Tickets Dashboard</a>
+          <a href="/hardware">Review Hardware</a>
+          <a href="/clients">Update Clients</a>
+          <a href="/tickets" title="Export">Export & Reports</a>
+        </div>
+      </div>
+
+      <div class="panel-glass">
+        <div class="panel-head">
+          <h3>Recent Activity</h3>
+          <span class="chip">Last five updates</span>
+        </div>
+        <div class="activity-feed">
+          {% if recent_tickets %}
+            {% for ticket in recent_tickets %}
+            <div class="activity-card">
+              <div>
+                <strong>{{ ticket.client }}</strong>
+                <span class="meta">Ticket #{{ ticket.id }} &mdash; {{ ticket.entry_type }}</span>
+              </div>
+              <span class="badge">{{ 'Added to QB' if ticket.completed else 'Open' }}</span>
+              <div style="grid-column: 1 / span 2; color: var(--txt-muted); font-size:0.9rem;">
+                {{ ticket.note or ticket.hardware_description or 'No details captured yet.' }}
+              </div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <p class="subtitle">No tickets logged yet. Launch your first mission from the tickets screen.</p>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
