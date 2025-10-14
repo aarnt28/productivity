@@ -5,6 +5,7 @@ services:
     environment:
       # --- Headless API key (kept as-is; required by /api/*) ---
       API_TOKEN: ${API_TOKEN:-CaRpoauTdDYdxQwWhWeXUQy}
+      ALEMBIC_CONFIG: /app/alembic.ini
 
       # --- Database / runtime (kept as-is) ---
       DB_URL: sqlite:////data/data.db

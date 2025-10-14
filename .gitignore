@@ -1,33 +1,33 @@
-# Python
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.venv/
-venv/
-.mypy_cache/
-.ruff_cache/
+# # Python
+# __pycache__/
+# *.py[cod]
+# .pytest_cache/
+# .venv/
+# venv/
+# .mypy_cache/
+# .ruff_cache/
 
-# FastAPI/UVicorn
-*.log
+# # FastAPI/UVicorn
+# *.log
 
-# DB / data (bind-mount/persistent volumes)
-/data/
-*.db
+# # DB / data (bind-mount/persistent volumes)
+# /data/
+# *.db
 
-# Node / front-end builds (if any)
-node_modules/
-dist/
-build/
+# # Node / front-end builds (if any)
+# node_modules/
+# dist/
+# build/
 
-# OS/IDE
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/*  # keep settings.json if you want; otherwise ignore
-!.vscode/settings.json
+# # OS/IDE
+# .DS_Store
+# Thumbs.db
+# .idea/
+# .vscode/*  # keep settings.json if you want; otherwise ignore
+# !.vscode/settings.json
 
-# Docker
-# *.env
-# .env*
-docker-compose.override.yml
-data/data.db
+# # Docker
+# # *.env
+# # .env*
+# docker-compose.override.yml
+# data/data.db

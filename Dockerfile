@@ -5,10 +5,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends tzdata ca-certi
 ENV TZ=America/Chicago
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV ALEMBIC_CONFIG=/app/alembic.ini
 # ENV DATABASE_URL=sqlite:///./data/tracker.db
 
 WORKDIR /app
+COPY alembic.ini ./
+COPY alembic ./alembic
 
 # Install Python deps (your original list) + the two minimal additions:
 #  - itsdangerous (Starlette sessions)

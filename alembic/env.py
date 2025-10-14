@@ -4,6 +4,8 @@ import os
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
+from app.db.session import Base
+
 
 # Import your SQLAlchemy Base (metadata)
 # Adjust if your Base lives elsewhere:
@@ -20,7 +22,7 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 # Prefer DATABASE_URL (env/.env) to keep single source of truth with the app:
-db_url = os.getenv("DATABASE_URL")
+db_url = os.getenv("DB_URL")
 if db_url:
     config.set_main_option("sqlalchemy.url", db_url)
 
