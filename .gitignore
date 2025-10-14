@@ -31,4 +31,4 @@
 # # .env*
 # docker-compose.override.yml
 # data/data.db
-data/data.db
+/data/
