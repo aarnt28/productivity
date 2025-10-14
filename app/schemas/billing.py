@@ -122,3 +122,28 @@ class UnbilledResponse(BaseModel):
     time: List[UnbilledTimeItem]
     parts: List[UnbilledPartItem]
     flat: List[UnbilledFlatItem]
+
+
+class QuickFlatRequest(BaseModel):
+    """
+    Convenience request to create a draft invoice with a single flat line.
+    Client may be identified by id or client table key/name.
+    Item may be identified by catalog_item_id or alias/sku.
+    """
+
+    # Client targeting
+    client_id: int | None = None
+    client_key: constr(strip_whitespace=True, min_length=1, max_length=255) | None = None
+    client_name: constr(strip_whitespace=True, min_length=1, max_length=255) | None = None
+
+    # Item selection
+    catalog_item_id: int | None = None
+    alias: constr(strip_whitespace=True, min_length=1, max_length=128) | None = None
+    qty: condecimal(max_digits=12, decimal_places=4) = 1
+    description: constr(strip_whitespace=True, min_length=1) | None = None
+    unit_price: condecimal(max_digits=12, decimal_places=2) | None = None
+
+    # Invoice fields
+    tax: condecimal(max_digits=12, decimal_places=2) = 0
+    notes: str | None = None
+    created_by: str | None = None

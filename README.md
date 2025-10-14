@@ -279,3 +279,54 @@ docker-compose.yml           # container entrypoint and env defaults
 Dockerfile                   # production image (Uvicorn @ 8090)
 ```
 
+
+## Shortcuts-Friendly Endpoints
+
+- Clients (legacy table): `/api/v1/clients` (app/routers/clients.py)
+  - GET `/api/v1/clients` → `{ clients, attribute_keys }`
+  - GET `/api/v1/clients/lookup?name=` → `{ client_key, client }`
+  - GET `/api/v1/clients/{client_key}` → single `{ client_key, client }`
+  - POST/PATCH/DELETE require UI session or `X-API-Key`
+
+- Quick Issue (new): `/api/work/items/quick-issue` (app/routers/work.py)
+  - Minimal payload to issue a part to a client's active work order by barcode/SKU.
+  - Accepts `client_id` or `client_key`/`client_name`, optional `project_id`, optional `warehouse_id` (uses only active warehouse if omitted), `alias`, and `qty`.
+
+Example:
+
+```
+curl -X POST -H "X-API-Key: $TOKEN" -H "Content-Type: application/json" \
+  -d '{
+        "client_key": "client_a",
+        "alias": "012345678905",
+        "qty": 1
+      }' \
+  http://localhost:8090/api/work/items/quick-issue
+```
+
+- Quick Time Start (new): `/api/work/time/quick-start` (app/routers/work.py)
+  - Start time for a client using `labor_role_name` (or `labor_role_id`), with `client_id` or `client_key`/`client_name`. Auto-creates/uses an active work order.
+
+```
+curl -X POST -H "X-API-Key: $TOKEN" -H "Content-Type: application/json" \
+  -d '{
+        "client_name": "Client A",
+        "labor_role_name": "Support",
+        "notes": "Remote session"
+      }' \
+  http://localhost:8090/api/work/time/quick-start
+```
+
+- Quick Flat Invoice (new): `/api/billing/quick-flat` (app/routers/billing.py)
+  - Create a draft invoice with a single flat line for a client. Identify the item by `catalog_item_id` or `alias` (SKU/UPC/etc.). Provide `unit_price` if the item has no default price.
+
+```
+curl -X POST -H "X-API-Key: $TOKEN" -H "Content-Type: application/json" \
+  -d '{
+        "client_key": "client_a",
+        "alias": "FLAT-CLEANUP",
+        "qty": 1,
+        "unit_price": 95
+      }' \
+  http://localhost:8090/api/billing/quick-flat
+```

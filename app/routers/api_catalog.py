@@ -7,7 +7,7 @@ from app.deps.auth import api_auth
 from app.models.sku_alias import SkuAlias
 from app.models.hardware import Hardware
 from app.schemas.catalog import AliasCreate, AliasOut, ResolveResult
-from app.services.barcode import resolve_any_code
+from app.services.barcode import resolve_catalog_item
 
 router = APIRouter(prefix="/api/v1/catalog", tags=["catalog"])
 
@@ -20,7 +20,7 @@ def get_db():
 
 @router.get("/resolve/{code}", response_model=ResolveResult, dependencies=[Depends(api_auth)])
 def resolve_code(code: str, db: Session = Depends(get_db)):
-    found = resolve_any_code(db, code)
+    found = resolve_catalog_item(db, code)
     if not found:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Code not found")
     hw, _ = found

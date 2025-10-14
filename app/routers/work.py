@@ -25,6 +25,8 @@ from app.schemas.work import (
     PartIssueRequest,
     PartIssueResponse,
     PartUsageOut,
+    QuickIssueRequest,
+    QuickTimeStartRequest,
     TimeEntryOut,
     TimeEntryStartRequest,
     TimeEntryStopRequest,
@@ -33,6 +35,7 @@ from app.schemas.work import (
 )
 from app.services.barcode import resolve_catalog_item
 from app.services.stock import StockError, issue_fifo
+from app.services.clientsync import resolve_client_key, get_client_entry
 
 router = APIRouter(prefix="/api/work", tags=["work"], dependencies=[Depends(api_auth)])
 
@@ -75,11 +78,63 @@ def _ensure_labor_role(db: Session, labor_role_id: int) -> LaborRole:
     return role
 
 
+def _ensure_labor_role_by_name(db: Session, labor_role_name: str) -> LaborRole:
+    name = (labor_role_name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Labor role name is required")
+    role = db.execute(select(LaborRole).where(LaborRole.name == name)).scalars().first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Labor role not found")
+    return role
+
+
 def _ensure_warehouse(db: Session, warehouse_id: int) -> Warehouse:
     warehouse = db.get(Warehouse, warehouse_id)
     if not warehouse:
         raise HTTPException(status_code=404, detail="Warehouse not found")
     return warehouse
+
+
+def _ensure_default_warehouse(db: Session) -> Warehouse:
+    rows = db.execute(select(Warehouse).where(Warehouse.is_active.is_(True)).order_by(Warehouse.id.asc())).scalars().all()
+    if not rows:
+        raise HTTPException(status_code=404, detail="No active warehouses configured")
+    if len(rows) > 1:
+        raise HTTPException(status_code=400, detail="Multiple warehouses exist; specify warehouse_id")
+    return rows[0]
+
+
+def _find_or_create_client_by_name(db: Session, name: str) -> Client:
+    name = (name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Client name is required")
+    client = db.execute(select(Client).where(Client.name == name)).scalars().first()
+    if client:
+        return client
+    client = Client(name=name)
+    db.add(client)
+    db.flush()
+    return client
+
+
+def _resolve_client_from_payload(db: Session, *, client_id: int | None, client_key: str | None, client_name: str | None) -> Client:
+    if client_id:
+        return _ensure_client(db, client_id)
+    # Prefer explicit key -> name via client table
+    if client_key:
+        entry = get_client_entry(client_key)
+        name = (entry or {}).get("name") or client_key
+        return _find_or_create_client_by_name(db, name)
+    # Accept raw name as last resort
+    if client_name:
+        # If the provided name maps to a known key, normalize to that table name
+        key = resolve_client_key(client_name)
+        if key:
+            entry = get_client_entry(key) or {}
+            normalized_name = entry.get("name") or client_name
+            return _find_or_create_client_by_name(db, normalized_name)
+        return _find_or_create_client_by_name(db, client_name)
+    raise HTTPException(status_code=400, detail="Provide client_id, client_key, or client_name")
 
 
 @router.post("/orders", response_model=WorkOrderOut, status_code=status.HTTP_201_CREATED)
@@ -272,3 +327,119 @@ def issue_part(payload: PartIssueRequest, db: Session = Depends(get_db)):
     return PartIssueResponse(usage=usage_out, ledger_entries=issue_result.ledger_entries)
 
 
+@router.post("/items/quick-issue", response_model=PartIssueResponse, status_code=status.HTTP_201_CREATED)
+def quick_issue_item(payload: QuickIssueRequest, db: Session = Depends(get_db)):
+    # Resolve or create target work order
+    if payload.work_order_id:
+        order = _ensure_work_order(db, payload.work_order_id)
+    else:
+        client = _resolve_client_from_payload(
+            db,
+            client_id=payload.client_id,
+            client_key=payload.client_key,
+            client_name=payload.client_name,
+        )
+        order = _find_or_create_active_order(
+            db,
+            client_id=client.id,
+            project_id=payload.project_id,
+            title_hint=f"Work order for {client.name}",
+        )
+
+    # Resolve warehouse
+    if payload.warehouse_id:
+        warehouse = _ensure_warehouse(db, payload.warehouse_id)
+    else:
+        warehouse = _ensure_default_warehouse(db)
+
+    # Resolve item (auto-creates placeholder on first scan)
+    resolved = resolve_catalog_item(db, payload.alias, created_by=payload.created_by)
+    if not resolved:
+        raise HTTPException(status_code=404, detail="Alias could not be resolved")
+    item = resolved.catalog_item
+
+    # Create PartUsage and issue stock FIFO
+    usage = PartUsage(
+        work_order_id=order.id,
+        catalog_item_id=item.id,
+        warehouse_id=warehouse.id,
+        qty=Decimal(payload.qty),
+        sell_price_override=None,
+        unit_cost_resolved=None,
+        barcode_scanned=payload.barcode_scanned,
+        notes=payload.notes,
+        created_by=payload.created_by,
+    )
+    db.add(usage)
+    db.flush()
+
+    try:
+        issue_result = issue_fifo(
+            db,
+            warehouse=warehouse,
+            catalog_item=item,
+            qty=Decimal(payload.qty),
+            reference_type=StockReferenceType.WORK_ENTRY,
+            reference_id=str(usage.id),
+            created_by=payload.created_by,
+        )
+    except StockError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    usage.unit_cost_resolved = issue_result.average_cost
+    db.add(usage)
+    db.commit()
+    db.refresh(usage)
+    for entry in issue_result.ledger_entries:
+        db.refresh(entry)
+
+    usage_out = _build_part_usage_out(usage, item)
+    return PartIssueResponse(usage=usage_out, ledger_entries=issue_result.ledger_entries)
+
+
+@router.post("/time/quick-start", response_model=TimeEntryOut, status_code=status.HTTP_201_CREATED)
+def quick_time_start(payload: QuickTimeStartRequest, db: Session = Depends(get_db)):
+    # Resolve client and ensure an active work order
+    client = _resolve_client_from_payload(
+        db,
+        client_id=payload.client_id,
+        client_key=payload.client_key,
+        client_name=payload.client_name,
+    )
+    order = _find_or_create_active_order(
+        db,
+        client_id=client.id,
+        project_id=payload.project_id,
+        title_hint=f"Work order for {client.name}",
+    )
+
+    # Resolve labor role
+    if payload.labor_role_id:
+        role = _ensure_labor_role(db, payload.labor_role_id)
+    elif payload.labor_role_name:
+        role = _ensure_labor_role_by_name(db, payload.labor_role_name)
+    else:
+        raise HTTPException(status_code=400, detail="labor_role_id or labor_role_name is required")
+
+    entry = TimeEntry(
+        work_order_id=order.id,
+        labor_role_id=role.id,
+        user_id=payload.user_id,
+        started_at=payload.started_at or datetime.utcnow(),
+        ended_at=None,
+        minutes=0,
+        bill_rate_override=payload.bill_rate_override,
+        cost_rate_override=payload.cost_rate_override,
+        billable=True,
+        notes=payload.notes,
+        created_by=payload.created_by,
+    )
+    db.add(entry)
+    # Mark order in-progress if needed
+    if order.status == WorkOrderStatus.OPEN:
+        order.status = WorkOrderStatus.IN_PROGRESS
+        db.add(order)
+    db.commit()
+    db.refresh(entry)
+    return entry
