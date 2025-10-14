@@ -2,7 +2,7 @@ import os
 import sys
 from decimal import Decimal
 from pathlib import Path
-
+from zoneinfo import ZoneInfo
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -11,8 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+
+tz = ZoneInfo("UTC")
 os.environ.setdefault("DATA_DIR", str(ROOT / "data"))  # ensure consistent paths for client table reads
-os.environ.setdefault("TZ", "UTC")
+os.environ.setdefault(tz)
 
 from app.db.session import Base  # noqa: E402
 from app.models.ticket import Ticket  # noqa: E402
