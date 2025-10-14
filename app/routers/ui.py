@@ -1,4 +1,6 @@
 from __future__ import annotations
+import json
+
 from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func, select
@@ -18,9 +20,11 @@ from ..services.clientsync import load_client_table
 from ..services.reporting import calculate_ticket_metrics
 from ..models.hardware import Hardware
 from ..models.inventory import InventoryEvent
+from ..models.work import Client
 from ..models.ticket import Ticket
 from ..deps.ui_auth import require_ui_session
 from ..core.jinja import get_templates  # <<< use centralized templates with filters
+from ..services.billing import get_unbilled
 
 templates = get_templates()
 
@@ -101,6 +105,22 @@ def reports_page(request: Request, db: Session = Depends(get_db)):
         "metrics": metrics,
     }
     return templates.TemplateResponse("reports.html", context)
+
+
+@router.get("/billing", response_class=HTMLResponse)
+def billing_page(request: Request, client_id: int | None = None, db: Session = Depends(get_db)):
+    clients = db.execute(select(Client).order_by(Client.name.asc())).scalars().all()
+    unbilled = get_unbilled(db, client_id)
+    clients_payload = [{"id": c.id, "name": c.name} for c in clients]
+    unbilled_payload = unbilled.model_dump() if hasattr(unbilled, "model_dump") else unbilled.dict()
+    context = {
+        "request": request,
+        "clients": clients,
+        "clients_json": json.dumps(clients_payload),
+        "initial_unbilled_json": json.dumps(unbilled_payload, default=str),
+        "selected_client_id": client_id or "",
+    }
+    return templates.TemplateResponse("biller.html", context)
 
 @router.get("/ui/hardware_table", response_class=HTMLResponse)
 def hardware_table_partial(request: Request, db: Session = Depends(get_db)):

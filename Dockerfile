@@ -35,4 +35,4 @@ COPY app /app/app
 EXPOSE 8090
 
 # Same command you had (already using port 8089)
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8089"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8090"]

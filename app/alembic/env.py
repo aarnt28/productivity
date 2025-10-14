@@ -14,6 +14,9 @@ from app.models import inventory as inventory_model  # noqa: F401
 from app.models import known_items as known_items_model  # noqa: F401
 from app.models import sku_alias as sku_alias_model  # noqa: F401
 from app.models import ticket as ticket_model  # noqa: F401
+from app.models import catalog as catalog_model  # noqa: F401
+from app.models import work as work_model  # noqa: F401
+from app.models import billing as billing_model  # noqa: F401
 
 # this is the Alembic Config object, which provides access to values
 config = context.config

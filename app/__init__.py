@@ -20,6 +20,9 @@ from .db.migrate import run_migrations
 from .models import hardware as _hardware  # noqa: F401
 from .models import ticket as _ticket  # noqa: F401
 from .models import inventory as _inventory  # noqa: F401
+from .models import catalog as _catalog  # noqa: F401
+from .models import work as _work  # noqa: F401
+from .models import billing as _billing  # noqa: F401
 
 # ---------- App init ----------
 app = FastAPI(title="Time Tracker")
@@ -111,6 +114,18 @@ app.include_router(address_router.router, prefix="")
 from app.routers import api_catalog, api_reports
 app.include_router(api_catalog.router)
 app.include_router(api_reports.router)
+
+from app.routers import catalog as catalog_router
+from app.routers import inventory as inventory_router
+from app.routers import work as work_router
+from app.routers import billing as billing_router
+from app.routers import reports as reports_router
+
+app.include_router(catalog_router.router)
+app.include_router(inventory_router.router)
+app.include_router(work_router.router)
+app.include_router(billing_router.router)
+app.include_router(reports_router.router)
 
 # ---------- Exception handling ----------
 # Redirect HTML 401s to /login while keeping JSON 401s for API/headless clients.

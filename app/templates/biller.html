@@ -1,0 +1,800 @@
+{% extends "base.html" %}
+{% block title %}Biller{% endblock %}
+
+{% block content %}
+<section class="page-header">
+  <h2>Invoice Builder</h2>
+  <p class="subhead">Select unbilled items, tweak rates and quantities, then generate and finalize invoices in one flow.</p>
+</section>
+
+<div
+  id="biller-app"
+  class="biller-grid"
+  data-initial='{{ initial_unbilled_json|safe }}'
+  data-clients='{{ clients_json|safe }}'
+  data-selected-client='{{ selected_client_id }}'
+>
+  <section class="biller-pane biller-filters">
+    <h3>Filters</h3>
+    <form data-role="filters-form" class="filters-form">
+      <label>
+        Client
+        <select name="client_id" data-role="client-select">
+          <option value="">All Clients</option>
+          {% for client in clients %}
+          <option value="{{ client.id }}" {% if client.id|string == selected_client_id|string %}selected{% endif %}>
+            {{ client.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Project
+        <select name="project_id" data-role="project-select">
+          <option value="">All Projects</option>
+        </select>
+      </label>
+      <label>
+        From
+        <input type="date" name="from" data-role="from-date" />
+      </label>
+      <label>
+        To
+        <input type="date" name="to" data-role="to-date" />
+      </label>
+      <button type="submit" class="btn-primary">Refresh</button>
+    </form>
+  </section>
+
+  <section class="biller-pane biller-lists">
+    <div class="tab-bar">
+      <button type="button" class="tab-button active" data-role="tab" data-tab="time">Unbilled Time</button>
+      <button type="button" class="tab-button" data-role="tab" data-tab="parts">Unbilled Parts</button>
+      <button type="button" class="tab-button" data-role="tab" data-tab="flat">Flat Tasks</button>
+    </div>
+    <div class="tab-content">
+      <div class="tab-panel" data-list="time"></div>
+      <div class="tab-panel hidden" data-list="parts"></div>
+      <div class="tab-panel hidden" data-list="flat"></div>
+    </div>
+  </section>
+
+  <section class="biller-pane biller-invoice">
+    <h3>Invoice Lines</h3>
+    <div data-role="invoice-empty" class="empty-state">Select items to build an invoice.</div>
+    <table class="invoice-table" data-role="invoice-table">
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Qty</th>
+          <th>Rate</th>
+          <th>Total</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody data-role="invoice-lines"></tbody>
+    </table>
+    <div class="invoice-controls">
+      <label>
+        Discount
+        <input type="number" step="0.01" value="0.00" data-role="discount-input" />
+      </label>
+      <label>
+        Tax
+        <input type="number" step="0.01" value="0.00" data-role="tax-input" />
+      </label>
+    </div>
+    <dl class="invoice-summary">
+      <div>
+        <dt>Subtotal</dt>
+        <dd data-role="subtotal">$0.00</dd>
+      </div>
+      <div>
+        <dt>Total</dt>
+        <dd data-role="total">$0.00</dd>
+      </div>
+    </dl>
+    <div class="invoice-actions">
+      <button type="button" class="btn-primary" data-action="create">Create Draft</button>
+      <div class="finalize-group hidden" data-role="finalize-group">
+        <label>
+          Finalize as
+          <select data-role="finalize-status">
+            <option value="sent">Sent</option>
+            <option value="paid">Paid</option>
+          </select>
+        </label>
+        <button type="button" class="btn-secondary" data-action="finalize">Finalize</button>
+      </div>
+      <button type="button" class="btn-link" data-action="reset">Reset</button>
+    </div>
+    <p class="status-message" data-role="status-message"></p>
+  </section>
+</div>
+
+<style>
+  .page-header {
+    margin-bottom: 1.5rem;
+  }
+  .page-header h2 {
+    margin: 0;
+    font-size: 1.75rem;
+  }
+  .page-header .subhead {
+    margin: 0.25rem 0 0;
+    color: #555;
+  }
+  .biller-grid {
+    display: grid;
+    grid-template-columns: 280px 1fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+  .biller-pane {
+    background: #fff;
+    border: 1px solid #e2e2e2;
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+  .filters-form {
+    display: grid;
+    gap: 0.75rem;
+  }
+  .filters-form label {
+    display: grid;
+    gap: 0.35rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .filters-form select,
+  .filters-form input {
+    padding: 0.45rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+  }
+  .filters-form .btn-primary {
+    margin-top: 0.5rem;
+  }
+  .tab-bar {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+  .tab-button {
+    flex: 1;
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: #f6f6f6;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .tab-button.active {
+    background: #1747a6;
+    border-color: #1747a6;
+    color: #fff;
+  }
+  .tab-panel {
+    display: grid;
+    gap: 0.6rem;
+    max-height: 480px;
+    overflow-y: auto;
+  }
+  .tab-panel.hidden {
+    display: none;
+  }
+  .list-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 0.75rem;
+    display: grid;
+    gap: 0.5rem;
+    background: #fafafa;
+  }
+  .list-card header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .list-card h4 {
+    margin: 0;
+    font-size: 1rem;
+  }
+  .list-card p {
+    margin: 0;
+    color: #555;
+    font-size: 0.9rem;
+  }
+  .invoice-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.75rem 0;
+  }
+  .invoice-table th,
+  .invoice-table td {
+    border: 1px solid #e2e2e2;
+    padding: 0.45rem;
+    text-align: left;
+  }
+  .invoice-table input {
+    width: 100%;
+    padding: 0.35rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  .invoice-controls {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+  }
+  .invoice-controls label {
+    display: grid;
+    gap: 0.25rem;
+    font-weight: 600;
+  }
+  .invoice-summary {
+    display: grid;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+  }
+  .invoice-summary div {
+    display: flex;
+    justify-content: space-between;
+  }
+  .invoice-summary dt,
+  .invoice-summary dd {
+    margin: 0;
+  }
+  .invoice-actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+  .btn-primary,
+  .btn-secondary,
+  .btn-link {
+    cursor: pointer;
+    border-radius: 6px;
+    border: none;
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+  }
+  .btn-primary {
+    background: #1747a6;
+    color: #fff;
+  }
+  .btn-secondary {
+    background: #f5f7fb;
+    color: #1747a6;
+  }
+  .btn-link {
+    background: transparent;
+    color: #555;
+    text-decoration: underline;
+  }
+  .finalize-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .finalize-group.hidden {
+    display: none;
+  }
+  .status-message {
+    margin-top: 0.75rem;
+    font-size: 0.9rem;
+    min-height: 1.2rem;
+  }
+  .empty-state {
+    color: #777;
+    margin-bottom: 0.75rem;
+  }
+  @media (max-width: 1200px) {
+    .biller-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<script>
+(() => {
+  const root = document.getElementById("biller-app");
+  if (!root) {
+    return;
+  }
+
+  const parseJSON = (value, fallback) => {
+    try {
+      return value ? JSON.parse(value) : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const state = {
+    clients: parseJSON(root.dataset.clients, []),
+    unbilled: parseJSON(root.dataset.initial, { time: [], parts: [], flat: [] }),
+    selectedClientId: root.dataset.selectedClient ? Number(root.dataset.selectedClient) : null,
+    filters: { projectId: "", from: "", to: "" },
+    activeTab: "time",
+    selectedLines: [],
+    selectedKeys: new Set(),
+    currentInvoice: null,
+  };
+
+  const els = {
+    tabs: root.querySelectorAll("[data-role='tab']"),
+    lists: {
+      time: root.querySelector("[data-list='time']"),
+      parts: root.querySelector("[data-list='parts']"),
+      flat: root.querySelector("[data-list='flat']"),
+    },
+    panels: root.querySelectorAll(".tab-panel"),
+    clientSelect: root.querySelector("[data-role='client-select']"),
+    projectSelect: root.querySelector("[data-role='project-select']"),
+    fromInput: root.querySelector("[data-role='from-date']"),
+    toInput: root.querySelector("[data-role='to-date']"),
+    filtersForm: root.querySelector("[data-role='filters-form']"),
+    invoiceEmpty: root.querySelector("[data-role='invoice-empty']"),
+    invoiceTable: root.querySelector("[data-role='invoice-table']"),
+    invoiceLines: root.querySelector("[data-role='invoice-lines']"),
+    discountInput: root.querySelector("[data-role='discount-input']"),
+    taxInput: root.querySelector("[data-role='tax-input']"),
+    subtotal: root.querySelector("[data-role='subtotal']"),
+    total: root.querySelector("[data-role='total']"),
+    createButton: root.querySelector("[data-action='create']"),
+    finalizeGroup: root.querySelector("[data-role='finalize-group']"),
+    finalizeButton: root.querySelector("[data-action='finalize']"),
+    finalizeStatus: root.querySelector("[data-role='finalize-status']"),
+    resetButton: root.querySelector("[data-action='reset']"),
+    statusMessage: root.querySelector("[data-role='status-message']"),
+  };
+
+  const formatCurrency = (value) => {
+    const number = Number(value) || 0;
+    return `$${number.toFixed(2)}`;
+  };
+
+  const toDate = (value) => (value ? new Date(value) : null);
+
+  const updateProjectOptions = () => {
+    const projectMap = new Map();
+    ["time", "parts"].forEach((type) => {
+      const items = state.unbilled[type] || [];
+      for (const item of items) {
+        if (item.project_id) {
+          const label = item.work_order_title ? `${item.work_order_title} (#${item.project_id})` : `Project #${item.project_id}`;
+          projectMap.set(item.project_id, label);
+        }
+      }
+    });
+    const select = els.projectSelect;
+    const current = select.value;
+    select.innerHTML = '<option value="">All Projects</option>';
+    for (const [id, label] of projectMap.entries()) {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = label;
+      if (current && Number(current) === Number(id)) {
+        option.selected = true;
+      }
+      select.appendChild(option);
+    }
+  };
+
+  const applyFilters = (type) => {
+    const items = state.unbilled[type] || [];
+    const { projectId, from, to } = state.filters;
+    const fromDate = from ? new Date(from) : null;
+    const toDate = to ? new Date(to) : null;
+
+    return items.filter((item) => {
+      if (projectId && Number(item.project_id || 0) !== Number(projectId)) {
+        return false;
+      }
+      if (fromDate || toDate) {
+        let reference = null;
+        if (type === "time") {
+          reference = item.ended_at || item.started_at;
+        } else if (type === "parts") {
+          reference = item.created_at;
+        }
+        if (reference) {
+          const ref = new Date(reference);
+          if (fromDate && ref < new Date(fromDate.toDateString())) {
+            return false;
+          }
+          if (toDate) {
+            const endOfDay = new Date(toDate);
+            endOfDay.setHours(23, 59, 59, 999);
+            if (ref > endOfDay) {
+              return false;
+            }
+          }
+        }
+      }
+      return true;
+    });
+  };
+
+  const isSelected = (type, item) => {
+    const key = `${type}:${item.id ?? item.time_entry_id ?? item.part_usage_id ?? item.catalog_item_id}`;
+    return state.selectedKeys.has(key);
+  };
+
+  const renderList = (type) => {
+    const container = els.lists[type];
+    container.innerHTML = "";
+    const filtered = applyFilters(type);
+    if (!filtered.length) {
+      const empty = document.createElement("p");
+      empty.className = "empty-state";
+      empty.textContent = "No items match the current filters.";
+      container.appendChild(empty);
+      return;
+    }
+    for (const item of filtered) {
+      const card = document.createElement("article");
+      card.className = "list-card";
+      const header = document.createElement("header");
+      const title = document.createElement("h4");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn-secondary";
+
+      if (type === "time") {
+        title.textContent = item.description || `Time Entry #${item.time_entry_id}`;
+        const details = document.createElement("p");
+        const hours = (Number(item.minutes) || 0) / 60;
+        details.textContent = `${hours.toFixed(2)} hours @ ${formatCurrency(item.resolved_bill_rate)} • Work Order #${item.work_order_id}`;
+        const meta = document.createElement("p");
+        if (item.ended_at) {
+          const ended = new Date(item.ended_at);
+          meta.textContent = `Ended ${ended.toLocaleString()}`;
+        }
+        header.appendChild(title);
+        button.textContent = isSelected(type, item) ? "Added" : "Add";
+        button.disabled = isSelected(type, item);
+        header.appendChild(button);
+        card.appendChild(header);
+        card.appendChild(details);
+        if (meta.textContent) {
+          card.appendChild(meta);
+        }
+      } else if (type === "parts") {
+        title.textContent = `${item.name} (${item.sku})`;
+        const details = document.createElement("p");
+        details.textContent = `${Number(item.qty).toFixed(2)} ${item.unit} @ ${formatCurrency(item.resolved_sell_price)} • Work Order #${item.work_order_id}`;
+        const meta = document.createElement("p");
+        if (item.created_at) {
+          const created = new Date(item.created_at);
+          meta.textContent = `Issued ${created.toLocaleString()}`;
+        }
+        header.appendChild(title);
+        button.textContent = isSelected(type, item) ? "Added" : "Add";
+        button.disabled = isSelected(type, item);
+        header.appendChild(button);
+        card.appendChild(header);
+        card.appendChild(details);
+        if (meta.textContent) {
+          card.appendChild(meta);
+        }
+      } else {
+        title.textContent = `${item.name} (${item.sku})`;
+        const details = document.createElement("p");
+        details.textContent = `${formatCurrency(item.sell_price)} flat`;
+        header.appendChild(title);
+        button.textContent = isSelected(type, item) ? "Added" : "Add";
+        button.disabled = isSelected(type, item);
+        header.appendChild(button);
+        card.appendChild(header);
+        card.appendChild(details);
+      }
+
+      button.addEventListener("click", () => addLine(type, item));
+      container.appendChild(card);
+    }
+  };
+
+  const renderLists = () => {
+    renderList("time");
+    renderList("parts");
+    renderList("flat");
+  };
+
+  const renderInvoice = () => {
+    const hasLines = state.selectedLines.length > 0;
+    els.invoiceEmpty.style.display = hasLines ? "none" : "block";
+    els.invoiceTable.style.display = hasLines ? "table" : "none";
+    els.invoiceLines.innerHTML = "";
+
+    if (!hasLines) {
+      els.finalizeGroup.classList.add("hidden");
+      els.statusMessage.textContent = "";
+      els.subtotal.textContent = "$0.00";
+      els.total.textContent = "$0.00";
+      return;
+    }
+
+    state.selectedLines.forEach((line, index) => {
+      const tr = document.createElement("tr");
+      const descTd = document.createElement("td");
+      descTd.textContent = line.description;
+
+      const qtyTd = document.createElement("td");
+      const qtyInput = document.createElement("input");
+      qtyInput.type = "number";
+      qtyInput.step = "0.01";
+      qtyInput.value = Number(line.qty).toFixed(2);
+      qtyTd.appendChild(qtyInput);
+
+      const priceTd = document.createElement("td");
+      const priceInput = document.createElement("input");
+      priceInput.type = "number";
+      priceInput.step = "0.01";
+      priceInput.value = Number(line.unit_price).toFixed(2);
+      priceTd.appendChild(priceInput);
+
+      const totalTd = document.createElement("td");
+      totalTd.textContent = formatCurrency(line.qty * line.unit_price);
+
+      const actionTd = document.createElement("td");
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.textContent = "Remove";
+      removeBtn.className = "btn-link";
+      actionTd.appendChild(removeBtn);
+
+      qtyInput.addEventListener("change", () => {
+        const value = parseFloat(qtyInput.value);
+        line.qty = isFinite(value) && value > 0 ? value : line.qty;
+        qtyInput.value = Number(line.qty).toFixed(2);
+        renderInvoice();
+      });
+
+      priceInput.addEventListener("change", () => {
+        const value = parseFloat(priceInput.value);
+        line.unit_price = isFinite(value) ? value : line.unit_price;
+        priceInput.value = Number(line.unit_price).toFixed(2);
+        renderInvoice();
+      });
+
+      removeBtn.addEventListener("click", () => {
+        state.selectedLines.splice(index, 1);
+        state.selectedKeys.delete(line.key);
+        renderLists();
+        renderInvoice();
+      });
+
+      tr.appendChild(descTd);
+      tr.appendChild(qtyTd);
+      tr.appendChild(priceTd);
+      tr.appendChild(totalTd);
+      tr.appendChild(actionTd);
+      els.invoiceLines.appendChild(tr);
+    });
+
+    const discount = parseFloat(els.discountInput.value) || 0;
+    const tax = parseFloat(els.taxInput.value) || 0;
+    const subtotal = state.selectedLines.reduce((sum, line) => sum + line.qty * line.unit_price, 0);
+    const total = subtotal - discount + tax;
+
+    els.subtotal.textContent = formatCurrency(subtotal);
+    els.total.textContent = formatCurrency(total);
+    els.finalizeGroup.classList.toggle("hidden", !state.currentInvoice);
+  };
+
+  const addLine = (type, item) => {
+    const key = type === "time"
+      ? `time:${item.time_entry_id}`
+      : type === "parts"
+        ? `parts:${item.part_usage_id}`
+        : `flat:${item.catalog_item_id}`;
+    if (state.selectedKeys.has(key)) {
+      return;
+    }
+    const line = { key, line_type: "", source_type: "", source_id: null, description: "", qty: 1, unit_price: 0 };
+    if (type === "time") {
+      const hours = (Number(item.minutes) || 0) / 60;
+      line.line_type = "labor";
+      line.source_type = "time_entry";
+      line.source_id = item.time_entry_id;
+      line.description = item.description || `Time Entry #${item.time_entry_id}`;
+      line.qty = hours || 1;
+      line.unit_price = parseFloat(item.resolved_bill_rate) || 0;
+    } else if (type === "parts") {
+      line.line_type = "part";
+      line.source_type = "part_usage";
+      line.source_id = item.part_usage_id;
+      line.description = `${item.name} (${item.sku})`;
+      line.qty = Number(item.qty) || 1;
+      line.unit_price = parseFloat(item.resolved_sell_price) || 0;
+    } else {
+      line.line_type = "flat";
+      line.source_type = "flat_task";
+      line.source_id = item.catalog_item_id;
+      line.description = item.name;
+      line.qty = 1;
+      line.unit_price = parseFloat(item.sell_price) || 0;
+    }
+    state.selectedLines.push(line);
+    state.selectedKeys.add(key);
+    state.currentInvoice = null;
+    renderLists();
+    renderInvoice();
+  };
+
+  const setActiveTab = (tab) => {
+    state.activeTab = tab;
+    els.tabs.forEach((tabBtn) => {
+      tabBtn.classList.toggle("active", tabBtn.dataset.tab === tab);
+    });
+    els.panels.forEach((panel) => {
+      panel.classList.toggle("hidden", panel.dataset.list !== tab);
+    });
+  };
+
+  const loadUnbilled = async () => {
+    const params = new URLSearchParams();
+    if (state.selectedClientId) {
+      params.set("client_id", state.selectedClientId);
+    }
+    els.statusMessage.textContent = "Loading unbilled items…";
+    try {
+      const response = await fetch(`/api/billing/unbilled?${params.toString()}`, {
+        credentials: "same-origin",
+      });
+      if (!response.ok) {
+        throw new Error(`Request failed: ${response.status}`);
+      }
+      state.unbilled = await response.json();
+      updateProjectOptions();
+      renderLists();
+      els.statusMessage.textContent = "";
+    } catch (error) {
+      console.error("Failed to load unbilled items", error);
+      els.statusMessage.textContent = "Unable to load unbilled items.";
+    }
+  };
+
+  const createInvoice = async () => {
+    if (!state.selectedLines.length) {
+      els.statusMessage.textContent = "Select at least one line item.";
+      return;
+    }
+    if (!state.selectedClientId) {
+      els.statusMessage.textContent = "Choose a client before creating an invoice.";
+      return;
+    }
+    const discount = parseFloat(els.discountInput.value) || 0;
+    const tax = parseFloat(els.taxInput.value) || 0;
+    const lines = state.selectedLines.map((line) => ({
+      line_type: line.line_type,
+      description: line.description,
+      qty: Number(line.qty),
+      unit_price: Number(line.unit_price),
+      source_type: line.source_type,
+      source_id: line.source_id,
+    }));
+    if (discount > 0) {
+      lines.push({
+        line_type: "flat",
+        description: "Discount",
+        qty: 1,
+        unit_price: -discount,
+        source_type: "flat_task",
+        source_id: null,
+      });
+    }
+    const payload = {
+      client_id: state.selectedClientId,
+      lines,
+      tax,
+    };
+    els.statusMessage.textContent = "Creating draft invoice…";
+    try {
+      const response = await fetch("/api/billing/invoices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to create invoice");
+      }
+      const invoice = await response.json();
+      state.currentInvoice = invoice;
+      els.statusMessage.textContent = `Draft invoice #${invoice.id} created.`;
+      els.finalizeGroup.classList.remove("hidden");
+      await loadUnbilled();
+    } catch (error) {
+      console.error("Failed to create invoice", error);
+      els.statusMessage.textContent = "Unable to create invoice; check selections and try again.";
+    }
+  };
+
+  const finalizeInvoice = async () => {
+    if (!state.currentInvoice) {
+      els.statusMessage.textContent = "Create an invoice draft first.";
+      return;
+    }
+    const status = els.finalizeStatus.value || "sent";
+    els.statusMessage.textContent = "Finalizing invoice…";
+    try {
+      const response = await fetch(`/api/billing/invoices/${state.currentInvoice.id}/finalize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Finalize failed");
+      }
+      const invoice = await response.json();
+      els.statusMessage.textContent = `Invoice #${invoice.id} marked as ${invoice.status}.`;
+      state.currentInvoice = invoice;
+      await loadUnbilled();
+    } catch (error) {
+      console.error("Failed to finalize invoice", error);
+      els.statusMessage.textContent = "Unable to finalize invoice.";
+    }
+  };
+
+  const resetBuilder = () => {
+    state.selectedLines = [];
+    state.selectedKeys.clear();
+    state.currentInvoice = null;
+    els.discountInput.value = "0.00";
+    els.taxInput.value = "0.00";
+    els.statusMessage.textContent = "Selection cleared.";
+    renderLists();
+    renderInvoice();
+  };
+
+  els.tabs.forEach((tabBtn) => {
+    tabBtn.addEventListener("click", () => {
+      setActiveTab(tabBtn.dataset.tab);
+    });
+  });
+
+  els.filtersForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    state.selectedClientId = els.clientSelect.value ? Number(els.clientSelect.value) : null;
+    state.filters.projectId = els.projectSelect.value;
+    state.filters.from = els.fromInput.value;
+    state.filters.to = els.toInput.value;
+    loadUnbilled();
+  });
+
+  els.projectSelect.addEventListener("change", () => {
+    state.filters.projectId = els.projectSelect.value;
+    renderLists();
+  });
+
+  els.fromInput.addEventListener("change", () => {
+    state.filters.from = els.fromInput.value;
+    renderLists();
+  });
+
+  els.toInput.addEventListener("change", () => {
+    state.filters.to = els.toInput.value;
+    renderLists();
+  });
+
+  els.discountInput.addEventListener("change", renderInvoice);
+  els.taxInput.addEventListener("change", renderInvoice);
+  els.createButton.addEventListener("click", createInvoice);
+  els.finalizeButton.addEventListener("click", finalizeInvoice);
+  els.resetButton.addEventListener("click", resetBuilder);
+
+  updateProjectOptions();
+  renderLists();
+  renderInvoice();
+  setActiveTab(state.activeTab);
+})();
+</script>
+{% endblock %}
+
