@@ -330,6 +330,8 @@ curl -X POST -H "X-API-Key: $TOKEN" -H "Content-Type: application/json" \
   http://localhost:8090/api/v2/billing/quick-flat
 ```
 
+- Invoice Builder now surfaces legacy tickets (time + hardware) alongside the normalized work items. Drafting or finalizing an invoice marks the original tickets as sent and stamps the invoice number for downstream reports.
+
 
 ## Shortcuts-Friendly Endpoints
 

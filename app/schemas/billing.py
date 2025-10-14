@@ -79,8 +79,10 @@ class InvoiceFinalizeRequest(BaseModel):
 
 class UnbilledTimeItem(BaseModel):
     time_entry_id: int
-    work_order_id: int
-    client_id: int
+    work_order_id: Optional[int] = None
+    client_id: Optional[int] = None
+    client_name: Optional[str] = None
+    client_key: Optional[str] = None
     project_id: Optional[int] = None
     minutes: int
     resolved_bill_rate: condecimal(max_digits=12, decimal_places=2)
@@ -90,14 +92,20 @@ class UnbilledTimeItem(BaseModel):
     started_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
     work_order_title: Optional[str] = None
+    source_type: str = "time_entry"
+    source_id: int
+    legacy: bool = False
+    ticket_id: Optional[int] = None
 
 
 class UnbilledPartItem(BaseModel):
     part_usage_id: int
-    work_order_id: int
-    client_id: int
+    work_order_id: Optional[int] = None
+    client_id: Optional[int] = None
+    client_name: Optional[str] = None
+    client_key: Optional[str] = None
     project_id: Optional[int] = None
-    catalog_item_id: int
+    catalog_item_id: Optional[int] = None
     sku: str
     name: str
     qty: condecimal(max_digits=14, decimal_places=4)
@@ -107,6 +115,10 @@ class UnbilledPartItem(BaseModel):
     subtotal: condecimal(max_digits=12, decimal_places=2)
     created_at: datetime
     work_order_title: Optional[str] = None
+    source_type: str = "part_usage"
+    source_id: int
+    legacy: bool = False
+    ticket_id: Optional[int] = None
 
 
 class UnbilledFlatItem(BaseModel):
@@ -116,6 +128,9 @@ class UnbilledFlatItem(BaseModel):
     name: str
     qty: condecimal(max_digits=12, decimal_places=4) = 1
     sell_price: condecimal(max_digits=12, decimal_places=2)
+    source_type: str = "flat_task"
+    source_id: Optional[int] = None
+    legacy: bool = False
 
 
 class UnbilledResponse(BaseModel):
