@@ -400,7 +400,7 @@
         const details = document.createElement("p");
         details.className = "list-card__meta";
         const hours = (Number(item.minutes) || 0) / 60;
-        const workOrderLabel = item.work_order_id ? ` • Work Order #${item.work_order_id}` : "";
+        const workOrderLabel = item.work_order_id ? ` - Work Order #${item.work_order_id}` : "";
         details.textContent = `${hours.toFixed(2)} hours @ ${formatCurrency(item.resolved_bill_rate)}${workOrderLabel}`;
         bodyElements.push(details);
         if (item.client_name) {
@@ -420,7 +420,7 @@
         title.textContent = `${item.name} (${item.sku})`;
         const details = document.createElement("p");
         details.className = "list-card__meta";
-        const workOrderLabel = item.work_order_id ? ` • Work Order #${item.work_order_id}` : "";
+        const workOrderLabel = item.work_order_id ? ` - Work Order #${item.work_order_id}` : "";
         details.textContent = `${Number(item.qty).toFixed(2)} ${item.unit} @ ${formatCurrency(item.resolved_sell_price)}${workOrderLabel}`;
         bodyElements.push(details);
         if (item.client_name) {
