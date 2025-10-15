@@ -77,11 +77,14 @@ class InvoiceLine(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     qty: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False, default=1)
     unit_price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
+    unit_cost: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
     line_total: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     source_type: Mapped[InvoiceSourceType] = mapped_column(
         SAEnum(InvoiceSourceType, name="invoice_source_type"), nullable=False
     )
     source_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    tax_code: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    snapshot_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     invoice: Mapped[Invoice] = relationship("Invoice", back_populates="lines")
     def __repr__(self) -> str:

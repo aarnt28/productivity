@@ -30,8 +30,11 @@ class InvoiceLineCreate(BaseModel):
     description: constr(strip_whitespace=True, min_length=1)
     qty: condecimal(max_digits=12, decimal_places=4)
     unit_price: condecimal(max_digits=12, decimal_places=2)
+    unit_cost: condecimal(max_digits=12, decimal_places=4) | None = None
     source_type: InvoiceSourceType
     source_id: int
+    tax_code: constr(strip_whitespace=True, max_length=64) | None = None
+    snapshot_json: str | None = None
 
 
 class InvoiceCreateRequest(BaseModel):
@@ -49,9 +52,12 @@ class InvoiceLineOut(BaseModel):
     description: str
     qty: condecimal(max_digits=12, decimal_places=4)
     unit_price: condecimal(max_digits=12, decimal_places=2)
+    unit_cost: condecimal(max_digits=12, decimal_places=4) | None = None
     line_total: condecimal(max_digits=12, decimal_places=2)
     source_type: InvoiceSourceType
     source_id: Optional[int]
+    tax_code: Optional[str] = None
+    snapshot_json: Optional[str] = None
 
     class Config:
         from_attributes = True

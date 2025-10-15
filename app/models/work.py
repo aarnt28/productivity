@@ -34,6 +34,14 @@ class WorkOrderStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class WorkOrderBillingState(str, Enum):
+    OPEN = "open"
+    AWAITING_APPROVAL = "awaiting_approval"
+    READY_TO_BILL = "ready_to_bill"
+    INVOICED = "invoiced"
+    CLOSED = "closed"
+
+
 class Client(Base):
     __tablename__ = "clients"
     __table_args__ = (Index("ix_clients_name_unique", "name", unique=True),)
@@ -100,6 +108,11 @@ class WorkOrder(Base):
     status: Mapped[WorkOrderStatus] = mapped_column(
         SAEnum(WorkOrderStatus, name="work_order_status"), nullable=False, default=WorkOrderStatus.OPEN
     )
+    billing_state: Mapped[WorkOrderBillingState] = mapped_column(
+        SAEnum(WorkOrderBillingState, name="work_order_billing_state"),
+        nullable=False,
+        default=WorkOrderBillingState.OPEN,
+    )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
@@ -141,9 +154,14 @@ class TimeEntry(Base):
     bill_rate_override: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
     cost_rate_override: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
     billable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    snap_cost_rate: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
+    snap_bill_rate: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
+    write_off_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     created_by: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    approved_by: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
     work_order: Mapped[WorkOrder] = relationship("WorkOrder", back_populates="time_entries")
     labor_role: Mapped["LaborRole"] = relationship("LaborRole", back_populates="time_entries")
@@ -172,6 +190,9 @@ class PartUsage(Base):
     qty: Mapped[float] = mapped_column(Numeric(14, 4), nullable=False)
     sell_price_override: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
     unit_cost_resolved: Mapped[Optional[float]] = mapped_column(Numeric(14, 4), nullable=True)
+    snap_unit_cost: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
+    snap_unit_price: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), nullable=True)
+    write_off_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     barcode_scanned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
