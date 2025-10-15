@@ -113,10 +113,10 @@ class StockLedger(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     catalog_item_id: Mapped[int] = mapped_column(
-        ForeignKey("catalog_items.id", ondelete="RESTRICT"), nullable=False, index=True
+        ForeignKey("catalog_items.id", ondelete="RESTRICT"), nullable=False
     )
     warehouse_id: Mapped[int] = mapped_column(
-        ForeignKey("warehouses.id", ondelete="RESTRICT"), nullable=False, index=True
+        ForeignKey("warehouses.id", ondelete="RESTRICT"), nullable=False
     )
     inventory_lot_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("inventory_lots.id", ondelete="SET NULL"), nullable=True, index=True

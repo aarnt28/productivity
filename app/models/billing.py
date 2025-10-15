@@ -69,7 +69,7 @@ class InvoiceLine(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     invoice_id: Mapped[int] = mapped_column(
-        ForeignKey("invoices.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("invoices.id", ondelete="CASCADE"), nullable=False
     )
     line_type: Mapped[InvoiceLineType] = mapped_column(
         SAEnum(InvoiceLineType, name="invoice_line_type"), nullable=False

@@ -11,8 +11,10 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from sqlalchemy import inspect
 
 from .core.config import settings
+
 from .db.session import Base, engine
 from .db.migrate import run_migrations
 
@@ -73,7 +75,23 @@ TEMPLATES.env.filters["fmt_date"] = fmt_date
 TEMPLATES.env.filters["fmt_time"] = fmt_time
 
 # ---------- DB init/migrations (unchanged) ----------
-Base.metadata.create_all(bind=engine)
+# Only create tables that are completely missing.
+# SQLite raises an OperationalError when we ask it to create an index that
+# already exists, which was happening because this module runs on every import
+# (for example, during app startup and in background workers).  We guard the
+# metadata creation so we only build brand-new tables while leaving existing
+# ones — along with their indexes created by Alembic — untouched.
+inspector = inspect(engine)
+existing_tables = {table_name for table_name in inspector.get_table_names()}
+if existing_tables:
+    missing_tables = [
+        table for table in Base.metadata.sorted_tables if table.name not in existing_tables
+    ]
+else:
+    missing_tables = list(Base.metadata.sorted_tables)
+
+if missing_tables:
+    Base.metadata.create_all(bind=engine, tables=missing_tables)
 run_migrations(engine)
 
 # ---------- Session middleware (UI login persistence) ----------

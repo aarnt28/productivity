@@ -129,7 +129,7 @@ class TimeEntry(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     work_order_id: Mapped[int] = mapped_column(
-        ForeignKey("work_orders.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("work_orders.id", ondelete="CASCADE"), nullable=False
     )
     labor_role_id: Mapped[int] = mapped_column(
         ForeignKey("labor_roles.id", ondelete="RESTRICT"), nullable=False, index=True
@@ -161,10 +161,10 @@ class PartUsage(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     work_order_id: Mapped[int] = mapped_column(
-        ForeignKey("work_orders.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("work_orders.id", ondelete="CASCADE"), nullable=False
     )
     catalog_item_id: Mapped[int] = mapped_column(
-        ForeignKey("catalog_items.id", ondelete="RESTRICT"), nullable=False, index=True
+        ForeignKey("catalog_items.id", ondelete="RESTRICT"), nullable=False
     )
     warehouse_id: Mapped[int] = mapped_column(
         ForeignKey("warehouses.id", ondelete="RESTRICT"), nullable=False, index=True
