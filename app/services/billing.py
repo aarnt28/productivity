@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
-from typing import Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -21,6 +21,7 @@ from app.schemas.billing import (
     UnbilledResponse,
     UnbilledTimeItem,
 )
+from app.services.clientsync import load_client_table
 from app.services.costing import compute_invoice_totals, resolve_labor_rates
 
 TWO_PLACES = Decimal("0.01")
@@ -91,6 +92,28 @@ def _unbilled_time_entries(db: Session, client_id: Optional[int]) -> List[Unbill
     if client_id:
         stmt = stmt.where(WorkOrder.client_id == client_id)
 
+    client_table = load_client_table()
+    rate_lookup: Dict[str, Tuple[str, Decimal]] = {}
+    for key, entry in (client_table or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        support_rate = entry.get("support_rate")
+        if support_rate is None:
+            continue
+        try:
+            resolved_rate = _decimal(support_rate, TWO_PLACES)
+        except (InvalidOperation, ValueError, TypeError):
+            continue
+        aliases = {str(key)}
+        for alias in (entry.get("name"), entry.get("display_name")):
+            if isinstance(alias, str) and alias.strip():
+                aliases.add(alias)
+        for alias in aliases:
+            normalized = alias.strip().casefold()
+            if not normalized:
+                continue
+            rate_lookup[normalized] = (str(key), resolved_rate)
+
     items: List[UnbilledTimeItem] = []
     for entry, work_order, client, role in db.execute(stmt):
         rates = resolve_labor_rates(
@@ -98,17 +121,24 @@ def _unbilled_time_entries(db: Session, client_id: Optional[int]) -> List[Unbill
             bill_rate_override=entry.bill_rate_override,
             cost_rate_override=entry.cost_rate_override,
         )
+        client_key = None
+        bill_rate = rates.bill_rate
+        normalized_name = (client.name or "").strip().casefold()
+        if normalized_name and normalized_name in rate_lookup:
+            client_key, client_rate = rate_lookup[normalized_name]
+            bill_rate = client_rate
         hours = Decimal(entry.minutes or 0) / Decimal(60)
-        subtotal = (hours * rates.bill_rate).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+        subtotal = (hours * bill_rate).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
         items.append(
             UnbilledTimeItem(
                 time_entry_id=entry.id,
                 work_order_id=entry.work_order_id,
                 client_id=client.id,
                 client_name=client.name,
+                client_key=client_key,
                 project_id=work_order.project_id,
                 minutes=entry.minutes or 0,
-                resolved_bill_rate=rates.bill_rate,
+                resolved_bill_rate=bill_rate,
                 resolved_cost_rate=rates.cost_rate,
                 subtotal=subtotal,
                 description=entry.notes,
