@@ -20,7 +20,7 @@ from app.schemas.catalog import (
 from app.services.barcode import ensure_alias, resolve_catalog_item
 
 
-router = APIRouter(prefix="/api/catalog", tags=["catalog"], dependencies=[Depends(api_auth)])
+router = APIRouter(prefix="/api/v2/catalog", tags=["catalog"], dependencies=[Depends(api_auth)])
 
 
 def get_db():

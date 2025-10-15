@@ -30,7 +30,7 @@ class Settings:
 
     # App binding (container listens on 0.0.0.0:8089; host/Windows maps via compose)
     HOST = os.getenv("HOST", "0.0.0.0")
-    PORT = int(os.getenv("PORT", "8089"))
+    PORT = int(os.getenv("PORT", "8090"))
 
     # Address autocomplete & geocoding (Geoapify)
     GEOAPIFY_API_KEY = os.getenv("GEOAPIFY_API_KEY", "")

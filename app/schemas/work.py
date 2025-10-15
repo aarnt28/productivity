@@ -141,3 +141,51 @@ class PartUsageOut(BaseModel):
 class PartIssueResponse(BaseModel):
     usage: PartUsageOut
     ledger_entries: List[InventoryLedgerEntry]
+
+
+class QuickIssueRequest(BaseModel):
+    """
+    Minimal payload for issuing a catalog item to a client's active work order.
+
+    Accepts any of client_id, client_key, or client_name. If no work_order_id
+    is supplied, an active work order is found/created for the client.
+    If warehouse_id is omitted and exactly one active warehouse exists, it is used.
+    """
+
+    alias: constr(strip_whitespace=True, min_length=1, max_length=128)
+    qty: condecimal(max_digits=14, decimal_places=4, gt=0) = 1
+
+    # Targeting
+    client_id: Optional[int] = None
+    client_key: Optional[constr(strip_whitespace=True, min_length=1, max_length=255)] = None
+    client_name: Optional[constr(strip_whitespace=True, min_length=1, max_length=255)] = None
+    project_id: Optional[int] = None
+    work_order_id: Optional[int] = None
+    warehouse_id: Optional[int] = None
+
+    # Metadata
+    barcode_scanned: bool = True
+    notes: Optional[str] = None
+    created_by: Optional[str] = None
+
+
+class QuickTimeStartRequest(BaseModel):
+    """Start time via client key/name and labor role name."""
+
+    # Targeting
+    client_id: Optional[int] = None
+    client_key: Optional[constr(strip_whitespace=True, min_length=1, max_length=255)] = None
+    client_name: Optional[constr(strip_whitespace=True, min_length=1, max_length=255)] = None
+    project_id: Optional[int] = None
+
+    # Role/User
+    labor_role_id: Optional[int] = None
+    labor_role_name: Optional[constr(strip_whitespace=True, min_length=1, max_length=128)] = None
+    user_id: Optional[str] = None
+
+    # Timing/metadata
+    started_at: Optional[datetime] = None
+    bill_rate_override: Optional[condecimal(max_digits=12, decimal_places=2)] = None
+    cost_rate_override: Optional[condecimal(max_digits=12, decimal_places=2)] = None
+    notes: Optional[str] = None
+    created_by: Optional[str] = None

@@ -349,23 +349,41 @@
     }
   };
 
+  const itemKey = (type, item) => {
+    const sourceType = item?.source_type || type;
+    const rawId =
+      item?.source_id ??
+      item?.id ??
+      item?.time_entry_id ??
+      item?.part_usage_id ??
+      item?.catalog_item_id ??
+      item?.ticket_id ??
+      "";
+    return `${sourceType}:${rawId}`;
+  };
+
   const isSelected = (type, item) => {
-    const key = `${type}:${item.id ?? item.time_entry_id ?? item.part_usage_id ?? item.catalog_item_id}`;
-    return state.selectedKeys.has(key);
+    const key = itemKey(type, item);
+    return key ? state.selectedKeys.has(key) : false;
   };
 
   const renderList = (type, filteredItems) => {
     const container = els.lists[type];
+    if (!container) {
+      return;
+    }
     container.innerHTML = "";
-    const filtered = filteredItems ?? applyFilters(type);
-    if (!filtered.length) {
+
+    const items = filteredItems ?? applyFilters(type);
+    if (!items.length) {
       const empty = document.createElement("p");
       empty.className = "empty-state";
       empty.textContent = "No items match the current filters.";
       container.appendChild(empty);
       return;
     }
-    for (const item of filtered) {
+
+    for (const item of items) {
       const card = document.createElement("article");
       card.className = "list-card";
       const header = document.createElement("header");
@@ -375,62 +393,67 @@
       const button = document.createElement("button");
       button.type = "button";
       button.className = "btn btn-secondary";
+      const bodyElements = [];
 
       if (type === "time") {
         title.textContent = item.description || `Time Entry #${item.time_entry_id}`;
         const details = document.createElement("p");
-        const hours = (Number(item.minutes) || 0) / 60;
         details.className = "list-card__meta";
-        details.textContent = `${hours.toFixed(2)} hours @ ${formatCurrency(item.resolved_bill_rate)} • Work Order #${item.work_order_id}`;
-        const meta = document.createElement("p");
+        const hours = (Number(item.minutes) || 0) / 60;
+        const workOrderLabel = item.work_order_id ? ` � Work Order #${item.work_order_id}` : "";
+        details.textContent = `${hours.toFixed(2)} hours @ ${formatCurrency(item.resolved_bill_rate)}${workOrderLabel}`;
+        bodyElements.push(details);
+        if (item.client_name) {
+          const client = document.createElement("p");
+          client.className = "list-card__client";
+          client.textContent = item.client_name;
+          bodyElements.push(client);
+        }
         if (item.ended_at) {
+          const meta = document.createElement("p");
+          meta.className = "list-card__time";
           const ended = new Date(item.ended_at);
           meta.textContent = `Ended ${ended.toLocaleString()}`;
-          meta.className = "list-card__time";
-        }
-        header.appendChild(title);
-        button.textContent = isSelected(type, item) ? "Added" : "Add";
-        button.disabled = isSelected(type, item);
-        header.appendChild(button);
-        card.appendChild(header);
-        card.appendChild(details);
-        if (meta.textContent) {
-          card.appendChild(meta);
+          bodyElements.push(meta);
         }
       } else if (type === "parts") {
         title.textContent = `${item.name} (${item.sku})`;
         const details = document.createElement("p");
         details.className = "list-card__meta";
-        details.textContent = `${Number(item.qty).toFixed(2)} ${item.unit} @ ${formatCurrency(item.resolved_sell_price)} • Work Order #${item.work_order_id}`;
-        const meta = document.createElement("p");
+        const workOrderLabel = item.work_order_id ? ` � Work Order #${item.work_order_id}` : "";
+        details.textContent = `${Number(item.qty).toFixed(2)} ${item.unit} @ ${formatCurrency(item.resolved_sell_price)}${workOrderLabel}`;
+        bodyElements.push(details);
+        if (item.client_name) {
+          const client = document.createElement("p");
+          client.className = "list-card__client";
+          client.textContent = item.client_name;
+          bodyElements.push(client);
+        }
         if (item.created_at) {
+          const meta = document.createElement("p");
+          meta.className = "list-card__time";
           const created = new Date(item.created_at);
           meta.textContent = `Issued ${created.toLocaleString()}`;
-          meta.className = "list-card__time";
-        }
-        header.appendChild(title);
-        button.textContent = isSelected(type, item) ? "Added" : "Add";
-        button.disabled = isSelected(type, item);
-        header.appendChild(button);
-        card.appendChild(header);
-        card.appendChild(details);
-        if (meta.textContent) {
-          card.appendChild(meta);
+          bodyElements.push(meta);
         }
       } else {
         title.textContent = `${item.name} (${item.sku})`;
         const details = document.createElement("p");
         details.className = "list-card__meta";
         details.textContent = `${formatCurrency(item.sell_price)} flat`;
-        header.appendChild(title);
-        button.textContent = isSelected(type, item) ? "Added" : "Add";
-        button.disabled = isSelected(type, item);
-        header.appendChild(button);
-        card.appendChild(header);
-        card.appendChild(details);
+        bodyElements.push(details);
       }
 
+      const key = itemKey(type, item);
+      button.textContent = key && state.selectedKeys.has(key) ? "Added" : "Add";
+      button.disabled = key ? state.selectedKeys.has(key) : false;
       button.addEventListener("click", () => addLine(type, item));
+
+      header.appendChild(title);
+      header.appendChild(button);
+      card.appendChild(header);
+      bodyElements.forEach((element) => card.appendChild(element));
+
       container.appendChild(card);
     }
   };
@@ -535,8 +558,8 @@
   };
 
   const addLine = (type, item) => {
-    const key = `${type}:${item.id ?? item.time_entry_id ?? item.part_usage_id ?? item.catalog_item_id}`;
-    if (state.selectedKeys.has(key)) {
+    const key = itemKey(type, item);
+    if (!key || state.selectedKeys.has(key)) {
       return;
     }
     const line = {
@@ -550,25 +573,31 @@
     if (type === "time") {
       const hours = (Number(item.minutes) || 0) / 60;
       line.line_type = "labor";
-      line.source_type = "time_entry";
-      line.source_id = item.time_entry_id;
+      line.source_type = item.source_type || "time_entry";
+      line.source_id = item.source_id ?? item.time_entry_id;
       line.description = item.description || `Time Entry #${item.time_entry_id}`;
       line.qty = hours || 1;
       line.unit_price = parseFloat(item.resolved_bill_rate) || 0;
     } else if (type === "parts") {
       line.line_type = "part";
-      line.source_type = "part_usage";
-      line.source_id = item.part_usage_id;
+      line.source_type = item.source_type || "part_usage";
+      line.source_id = item.source_id ?? item.part_usage_id;
       line.description = `${item.name} (${item.sku})`;
       line.qty = Number(item.qty) || 1;
       line.unit_price = parseFloat(item.resolved_sell_price) || 0;
     } else {
       line.line_type = "flat";
-      line.source_type = "flat_task";
-      line.source_id = item.catalog_item_id;
+      line.source_type = item.source_type || "flat_task";
+      line.source_id = item.source_id ?? item.catalog_item_id;
       line.description = item.name;
       line.qty = 1;
       line.unit_price = parseFloat(item.sell_price) || 0;
+    }
+    if (typeof line.source_id === "string") {
+      const numeric = Number(line.source_id);
+      if (!Number.isNaN(numeric)) {
+        line.source_id = numeric;
+      }
     }
     state.selectedLines.push(line);
     state.selectedKeys.add(key);
@@ -596,7 +625,7 @@
     }
     els.statusMessage.textContent = "Loading unbilled items…";
     try {
-      const response = await fetch(`/api/billing/unbilled?${params.toString()}`, {
+      const response = await fetch(`/api/v2/billing/unbilled?${params.toString()}`, {
         credentials: "same-origin",
       });
       if (!response.ok) {
@@ -648,7 +677,7 @@
     };
     els.statusMessage.textContent = "Creating draft invoice…";
     try {
-      const response = await fetch("/api/billing/invoices", {
+      const response = await fetch("/api/v2/billing/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
@@ -677,7 +706,7 @@
     const status = els.finalizeStatus.value || "sent";
     els.statusMessage.textContent = "Finalizing invoice…";
     try {
-      const response = await fetch(`/api/billing/invoices/${state.currentInvoice.id}/finalize`, {
+      const response = await fetch(`/api/v2/billing/invoices/${state.currentInvoice.id}/finalize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",

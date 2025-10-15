@@ -17,7 +17,7 @@ from app.models.inventory import StockLedger, StockReason
 from app.models.work import PartUsage, TimeEntry
 from app.models.catalog import LaborRole
 
-router = APIRouter(prefix="/api/reports", tags=["reports"], dependencies=[Depends(api_auth)])
+router = APIRouter(prefix="/api/v2/reports", tags=["reports"], dependencies=[Depends(api_auth)])
 
 CENTRAL_TZ = ZoneInfo("America/Chicago")
 
@@ -134,4 +134,3 @@ def daily_rollup(date: Optional[str] = Query(default=None), db: Session = Depend
         },
         "money_spent": {"cogs": float(cogs_total)},
     }
-

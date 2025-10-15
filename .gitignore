@@ -1,18 +1,20 @@
 # # Python
-# __pycache__/
+__pycache__/
 # *.py[cod]
 # .pytest_cache/
 # .venv/
 # venv/
 # .mypy_cache/
 # .ruff_cache/
+/productivity-app/
+/swift_files/
 
 # # FastAPI/UVicorn
 # *.log
 
 # # DB / data (bind-mount/persistent volumes)
 # /data/
-# *.db
+*.db
 
 # # Node / front-end builds (if any)
 # node_modules/
@@ -31,3 +33,4 @@
 # # .env*
 # docker-compose.override.yml
 # data/data.db
+# /data/

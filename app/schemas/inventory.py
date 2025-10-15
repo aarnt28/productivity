@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, condecimal, conint
+from pydantic import BaseModel, Field, condecimal, conint, model_validator
 
 
 class StockReason(str, Enum):
@@ -18,6 +19,60 @@ class StockReferenceType(str, Enum):
     WORK_ENTRY = "WorkEntry"
     PURCHASE_ORDER = "PO"
     INIT = "Init"
+
+
+AmountValue = Decimal | float | int | str
+
+
+class InventoryAdjustment(BaseModel):
+    hardware_id: Optional[int] = Field(None, gt=0)
+    barcode: Optional[str] = None
+    quantity: conint(gt=0)
+    note: Optional[str] = None
+    vendor_name: Optional[str] = None
+    client_name: Optional[str] = None
+    actual_cost: Optional[AmountValue] = None
+    sale_price: Optional[AmountValue] = None
+
+    @model_validator(mode="after")
+    def _ensure_hardware_identifier(self):
+        if not self.hardware_id and not self.barcode:
+            raise ValueError("Either hardware_id or barcode must be provided")
+        return self
+
+
+class InventoryEventOut(BaseModel):
+    id: int
+    hardware_id: int
+    change: int
+    source: str
+    note: Optional[str] = None
+    created_at: str
+    ticket_id: Optional[int] = None
+    counterparty_name: Optional[str] = None
+    counterparty_type: Optional[str] = None
+    actual_cost: Optional[float] = None
+    unit_cost: Optional[float] = None
+    sale_price_total: Optional[float] = None
+    sale_unit_price: Optional[float] = None
+    hardware_barcode: Optional[str] = None
+    hardware_description: Optional[str] = None
+    profit_total: Optional[float] = None
+    profit_unit: Optional[float] = None
+
+    class Config:
+        from_attributes = True
+
+
+class InventorySummaryItem(BaseModel):
+    hardware_id: int
+    barcode: Optional[str] = None
+    description: Optional[str] = None
+    quantity: int
+    last_activity: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
 
 
 class InventoryReceiptLine(BaseModel):

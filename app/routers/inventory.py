@@ -23,7 +23,7 @@ from app.schemas.inventory import (
 from app.services.stock import IssueResult, StockError, issue_fifo, receive_inventory as stock_receive_inventory
 
 
-router = APIRouter(prefix="/api/inventory", tags=["inventory"], dependencies=[Depends(api_auth)])
+router = APIRouter(prefix="/api/v2/inventory", tags=["inventory"], dependencies=[Depends(api_auth)])
 
 
 def get_db():
