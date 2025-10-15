@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -45,6 +46,15 @@ def _safe_decimal(value: object | None, places: Decimal = TWO_PLACES) -> Decimal
         return _decimal(value, places)
     except (InvalidOperation, ValueError, TypeError):
         return Decimal("0").quantize(places, rounding=ROUND_HALF_UP)
+
+
+def _decimal_or_none(value: object | None, places: Decimal = TWO_PLACES) -> Optional[Decimal]:
+    if value is None:
+        return None
+    try:
+        return _decimal(value, places)
+    except (InvalidOperation, ValueError, TypeError):
+        return None
 
 
 def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
@@ -353,6 +363,7 @@ def create_invoice(db: Session, payload: InvoiceCreateRequest) -> Invoice:
 
     subtotal = Decimal("0")
     legacy_ticket_ids: set[int] = set()
+    prepared_lines: List[dict] = []
     for line in payload.lines:
         source_type = InvoiceSourceType(line.source_type)
         source_id = line.source_id
@@ -365,8 +376,92 @@ def create_invoice(db: Session, payload: InvoiceCreateRequest) -> Invoice:
             legacy_ticket_ids.add(abs(source_id))
         qty = _decimal(line.qty, FOUR_PLACES)
         unit_price = _decimal(line.unit_price, TWO_PLACES)
+        unit_cost = _decimal_or_none(line.unit_cost, FOUR_PLACES)
+        tax_code = line.tax_code
+        snapshot_payload = line.snapshot_json
+
+        if source_type == InvoiceSourceType.TIME_ENTRY:
+            entry = db.get(TimeEntry, source_id) if source_id else None
+            if not entry:
+                raise BillingError("Time entry source missing")
+            rates = resolve_labor_rates(
+                entry.labor_role,
+                bill_rate_override=entry.bill_rate_override,
+                cost_rate_override=entry.cost_rate_override,
+            )
+            resolved_cost = _decimal(rates.cost_rate, TWO_PLACES)
+            resolved_bill = unit_price
+            entry.snap_cost_rate = resolved_cost
+            entry.snap_bill_rate = resolved_bill
+            entry.write_off_amount = _decimal(entry.write_off_amount or Decimal("0"))
+            if not entry.approved_at:
+                entry.approved_at = datetime.utcnow()
+            db.add(entry)
+            unit_cost = unit_cost or resolved_cost
+            if snapshot_payload is None:
+                snapshot_payload = json.dumps(
+                    {
+                        "type": "labor",
+                        "time_entry_id": entry.id,
+                        "work_order_id": entry.work_order_id,
+                        "minutes": entry.minutes,
+                        "resolved_bill_rate": str(resolved_bill),
+                        "resolved_cost_rate": str(resolved_cost),
+                        "notes": entry.notes,
+                    }
+                )
+        elif source_type == InvoiceSourceType.PART_USAGE:
+            usage = db.get(PartUsage, source_id) if source_id else None
+            if not usage:
+                raise BillingError("Part usage source missing")
+            resolved_cost_source = (
+                usage.snap_unit_cost if usage.snap_unit_cost is not None else usage.unit_cost_resolved or Decimal("0")
+            )
+            resolved_cost = _decimal(resolved_cost_source, FOUR_PLACES)
+            usage.snap_unit_cost = resolved_cost
+            usage.snap_unit_price = unit_price
+            usage.write_off_amount = _decimal(usage.write_off_amount or Decimal("0"))
+            db.add(usage)
+            unit_cost = unit_cost or resolved_cost
+            if snapshot_payload is None:
+                snapshot_payload = json.dumps(
+                    {
+                        "type": "part",
+                        "part_usage_id": usage.id,
+                        "work_order_id": usage.work_order_id,
+                        "catalog_item_id": usage.catalog_item_id,
+                        "qty": str(qty),
+                        "unit_price": str(unit_price),
+                        "unit_cost": str(resolved_cost),
+                    }
+                )
+        elif source_type == InvoiceSourceType.FLAT_TASK:
+            if snapshot_payload is None:
+                snapshot_payload = json.dumps(
+                    {
+                        "type": "flat",
+                        "source_id": source_id,
+                        "qty": str(qty),
+                        "unit_price": str(unit_price),
+                    }
+                )
+
+        if snapshot_payload is not None and isinstance(snapshot_payload, dict):
+            snapshot_payload = json.dumps(snapshot_payload)
+
         line_total = qty * unit_price
         subtotal += line_total
+        prepared_lines.append(
+            {
+                "line": line,
+                "qty": qty,
+                "unit_price": unit_price,
+                "unit_cost": unit_cost,
+                "line_total": line_total,
+                "tax_code": tax_code,
+                "snapshot": snapshot_payload,
+            }
+        )
 
     tax = _decimal(payload.tax)
     total = compute_invoice_totals(subtotal.quantize(TWO_PLACES, rounding=ROUND_HALF_UP), tax)
@@ -383,10 +478,12 @@ def create_invoice(db: Session, payload: InvoiceCreateRequest) -> Invoice:
     db.add(invoice)
     db.flush()
 
-    for line in payload.lines:
-        qty = _decimal(line.qty, FOUR_PLACES)
-        unit_price = _decimal(line.unit_price, TWO_PLACES)
-        line_total = qty * unit_price
+    for prepared in prepared_lines:
+        line = prepared["line"]
+        qty = prepared["qty"]
+        unit_price = prepared["unit_price"]
+        unit_cost = prepared["unit_cost"]
+        line_total = prepared["line_total"]
         db.add(
             InvoiceLine(
                 invoice_id=invoice.id,
@@ -397,6 +494,9 @@ def create_invoice(db: Session, payload: InvoiceCreateRequest) -> Invoice:
                 line_total=line_total.quantize(TWO_PLACES, rounding=ROUND_HALF_UP),
                 source_type=InvoiceSourceType(line.source_type),
                 source_id=line.source_id,
+                unit_cost=unit_cost,
+                tax_code=prepared["tax_code"],
+                snapshot_json=prepared["snapshot"],
             )
         )
 
